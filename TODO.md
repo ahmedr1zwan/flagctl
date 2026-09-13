@@ -44,15 +44,17 @@ Then, updates and deletion:
 - [x] Verify enable, disable, description clearing, and deletion through HTTP.
 - [x] Extend the README with verified update/delete examples.
 
-## 3. CLI — two increments, next
+## 3. CLI — create/list complete; get/toggle/delete next
 
-- [ ] Add the shared HTTP client with context, timeout, and API error handling.
-- [ ] Add Cobra root command, server configuration, and required environment option.
-- [ ] Implement `flags create` and `flags list` against the real service.
+- [x] Add the shared HTTP client with context, timeout, and API error handling.
+- [x] Add Cobra root command, server configuration, and required environment option.
+- [x] Implement `flags create` and `flags list` against the real service.
 - [ ] Implement `flags get`, `flags toggle --enabled=...`, and `flags delete`.
-- [ ] Add table and JSON output, help, stderr errors, and failure exit codes.
+- [x] Add table and JSON output, help, stderr errors, and failure exit codes.
+- [x] Verify create/list across dev/prod, output parsing, and connection errors.
 - [ ] Verify the lifecycle across dev/prod, parseable JSON, and connection errors.
-- [ ] Add verified CLI examples to the README.
+- [x] Add verified create/list CLI examples to the README.
+- [ ] Extend the README with get/toggle/delete CLI examples.
 
 ## 4. Terraform provider
 
@@ -156,3 +158,19 @@ Then, updates and deletion:
   baseline commit `9de54c0` with the verified create/read service. New increments
   are committed separately, with completed and planned features distinguished in
   the README.
+- 2026-09-13, step 3a: Pinned Cobra v1.10.2 and added the shared HTTP client plus
+  create/list CLI commands. CGO-disabled CLI build, vet, formatting, and module
+  verification passed. `govulncheck@v1.8.0` reported no known vulnerabilities.
+- 2026-09-13, step 3a: Real-service checks passed for create/list, default and
+  explicit boolean values, dev/prod isolation, duplicates, table and JSON output,
+  empty lists, concurrent clients, and persistence visible after a service restart.
+  Verified required environments, server configuration precedence, help, and
+  failure exit codes. Fixed Cobra's group-command fallback so unimplemented flag
+  commands fail rather than printing help and returning success.
+- 2026-09-13, step 3a: Local fake-server checks passed for connection errors,
+  request timeout/cancellation, redirect refusal, malformed/incomplete/oversized
+  responses, unexpected HTTP status codes, and tolerance of additive response
+  fields. Synthetic sensitive response messages and endpoint credentials were
+  not echoed; proxy settings were bypassed and table control characters escaped.
+  All verification servers were stopped and isolated databases removed. Dedicated
+  Go unit and acceptance suites remain deferred.

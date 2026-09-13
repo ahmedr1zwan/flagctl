@@ -3,12 +3,14 @@
 Manage boolean feature flags independently across environments through a
 versioned REST API. Built in Go with SQLite persistence, flagctl supports the
 complete flag lifecycle: create, list, read, enable/disable, edit, and delete.
+The Cobra CLI currently supports creating and listing flags with table or JSON output.
 
 | Component | Status |
 | --- | --- |
 | Go REST service and persistent SQLite storage | Implemented |
 | Environment isolation, input validation, and local access protections | Implemented |
-| Cobra CLI with JSON/table output | Next |
+| Cobra CLI create/list with JSON/table output | Implemented |
+| CLI get, toggle, and delete | Next |
 | Terraform Plugin Framework provider | Planned |
 | Automated Go tests, Docker, CI, and published binaries | Planned |
 
@@ -19,9 +21,9 @@ Architecture (dashed arrows show planned clients):
 
 ```mermaid
 flowchart LR
-    CLI["Cobra CLI (planned)"] -.-> Client["Shared Go client (planned)"]
+    CLI["Cobra CLI (create/list)"] --> Client["Shared Go HTTP client"]
     Terraform["Terraform provider (planned)"] -.-> Client
-    Client -.-> API["Go REST API (/v1)"]
+    Client --> API["Go REST API (/v1)"]
     API --> DB[(SQLite)]
 ```
 
@@ -75,7 +77,73 @@ curl --noproxy '*' -i http://127.0.0.1:8081/healthz
 which is printed in the startup log. Hostnames, wildcard addresses, and
 non-loopback IPs are rejected. `./bin/flagd --help` prints the available options.
 
-## Create and read flags
+## Use the CLI
+
+With `flagd` running, build and use the CLI from a second terminal in the repository:
+
+```sh
+go build -o bin/flagctl ./cmd/flagctl
+
+./bin/flagctl flags create checkout_v2 --env dev --description "New checkout"
+./bin/flagctl flags list --env dev
+./bin/flagctl flags list --env dev --output json
+./bin/flagctl flags create checkout_v2 --env prod --enabled=true --output json
+```
+
+Default table output:
+
+```text
+ENVIRONMENT  KEY          ENABLED  DESCRIPTION
+dev          checkout_v2  false    New checkout
+```
+
+`--env` is required. Create defaults to disabled with an empty description.
+Use `--enabled=true` or `--enabled=false` to set the initial state. Repeating a
+create fails with a useful `HTTP 409, already_exists` error and leaves the record
+unchanged. The CLI and curl examples below share the same demo flags, so run either
+creation example first; the other will then report a duplicate.
+
+JSON create output is one flag object; JSON list output is `{"flags":[...]}`.
+An empty environment produces `{"flags":[]}`, or just the header in table mode.
+Successful output goes to stdout; errors go to stderr with exit code 1 and no
+result on stdout. Use JSON for scripts; table descriptions escape control
+characters and line breaks. For example:
+
+```sh
+./bin/flagctl flags list --env dev -o json | python3 -m json.tool
+./bin/flagctl flags create --help
+./bin/flagctl flags list --help
+```
+
+Server configuration uses this precedence: explicit `--server`, then a nonempty
+`FLAGCTL_SERVER`, then `http://127.0.0.1:8080`. `--timeout` defaults to `10s` and must
+be positive. `--output` (or `-o`) accepts `table` or `json`.
+
+For a server already running on port 8081:
+
+```sh
+./bin/flagctl --server http://127.0.0.1:8081 flags list --env dev
+FLAGCTL_SERVER=http://127.0.0.1:8081 ./bin/flagctl flags list --env dev --timeout 5s
+```
+
+The client accepts loopback IPs or `localhost` with an optional port and a root
+URL path. Credentials in URLs, other paths, queries, fragments, and remote hosts
+are rejected without echoing their values. Local HTTP requests bypass proxy
+environment variables and redirects are not followed. Responses are limited to
+8 MiB and decoded with validation while tolerating additive response fields.
+Use HTTP with the current `flagd`; if using a local HTTPS endpoint, the client
+uses normal certificate verification and provides no insecure bypass.
+
+Stop `flagd` and repeat `flags list` to check connection-error handling. Ctrl+C
+cancels an in-progress request. The CLI does not automatically retry operations:
+if creation times out or is interrupted, list flags before retrying, because the
+service may already have committed the record. Restarting `flagd` with the same
+data directory preserves flags created through the CLI.
+
+CLI `get`, `toggle`, and `delete` are the next increment; use the REST endpoints
+below for those operations for now.
+
+## Create and read flags over REST
 
 With the service running, use a second terminal:
 
@@ -219,7 +287,7 @@ To repeat the known-vulnerability check (requires internet access):
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
-The step 2b scan reported `No vulnerabilities found.` The scanner is a development
+The step 3a scan reported `No vulnerabilities found.` The scanner is a development
 tool and does not add a dependency to the application module. It checks known
 vulnerabilities, not every possible security defect.
 
@@ -239,10 +307,14 @@ vulnerabilities, not every possible security defect.
   defend against DNS rebinding. Go's browser-origin protection rejects unsafe
   cross-origin requests before they reach mutations; native clients such as
   curl need no Origin header. These checks do not authenticate local clients.
-- The application does not load credential files, read API-key environment
-  variables, or send outbound requests. Application logs contain lifecycle
+- The service does not load credential files, read API-key environment
+  variables, or send outbound requests. Service logs contain lifecycle
   messages, startup errors, and operation names on storage failures, not request
   headers, query strings, bodies, or raw database errors.
+- The CLI reads `FLAGCTL_SERVER` for configuration and sends requests only to its
+  configured local service. It neither reads the database nor loads credentials.
+  Help does not print the environment-provided server value, and errors do not
+  echo raw transport errors, response bodies, or remote error messages.
 - `.gitignore` excludes common `.env`, private-key, credential, database, and
   Terraform state/plan files. Ignore rules are a guardrail: they do not detect
   secrets pasted into source, protect already tracked files, or encrypt data.
@@ -259,6 +331,8 @@ constitute a production security audit.
 ## Files to explore
 
 - `cmd/flagd/main.go`: options, loopback enforcement, server limits, and shutdown.
+- `cmd/flagctl/main.go` and `internal/cli/`: Cobra commands, output, and cancellation.
+- `internal/client/`: shared HTTP client, endpoint validation, and typed API errors.
 - `internal/api/`: routing, Host/origin protections, strict request decoding, and JSON errors.
 - `internal/flags/flag.go`: flag model and input validation.
 - `internal/store/`: private SQLite files, schema initialization, and flag queries.

@@ -1,0 +1,260 @@
+// Package client implements the HTTP API shared by flagctl and the future
+// Terraform provider. It does not access database files or load credentials.
+package client
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"mime"
+	"net"
+	"net/http"
+	"net/netip"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/ahmedr1zwan/flagctl/internal/flags"
+)
+
+const DefaultServer = "http://127.0.0.1:8080"
+const maxResponseBytes = 8 << 20
+
+type Client struct {
+	baseURL url.URL
+	http    *http.Client
+}
+
+// New accepts a loopback service origin only. Remote access and authentication
+// will require an explicit design change when the service supports them.
+func New(server string, timeout time.Duration) (*Client, error) {
+	base, err := parseServer(server)
+	if err != nil {
+		return nil, err
+	}
+	if timeout <= 0 {
+		return nil, errors.New("--timeout must be greater than zero")
+	}
+	transport := &http.Transport{
+		// Never route local flag data through environment-configured proxies.
+		Proxy:                  nil,
+		DialContext:            (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).DialContext,
+		TLSHandshakeTimeout:    timeout,
+		ResponseHeaderTimeout:  timeout,
+		MaxResponseHeaderBytes: 16 << 10,
+		MaxIdleConns:           4,
+		IdleConnTimeout:        30 * time.Second,
+	}
+	return &Client{baseURL: *base, http: &http.Client{
+		Transport: transport,
+		Timeout:   timeout,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}}, nil
+}
+
+func (c *Client) Close() {
+	c.http.CloseIdleConnections()
+}
+
+func parseServer(server string) (*url.URL, error) {
+	invalid := errors.New("--server must be an http(s) loopback origin, such as http://127.0.0.1:8080; credentials, paths, queries, and fragments are not allowed")
+	base, err := url.Parse(server)
+	if err != nil || base.Opaque != "" || (base.Scheme != "http" && base.Scheme != "https") ||
+		base.User != nil || (base.Path != "" && base.Path != "/") || base.RawPath != "" ||
+		base.RawQuery != "" || base.ForceQuery || strings.Contains(server, "#") {
+		return nil, invalid
+	}
+	host := strings.ToLower(base.Hostname())
+	if host != "localhost" {
+		ip, err := netip.ParseAddr(host)
+		if err != nil || ip.Zone() != "" || !ip.Unmap().IsLoopback() {
+			return nil, invalid
+		}
+	}
+	if port := base.Port(); port != "" {
+		number, err := strconv.Atoi(port)
+		if err != nil || number < 1 || number > 65535 {
+			return nil, invalid
+		}
+	} else if strings.HasSuffix(base.Host, ":") {
+		return nil, invalid
+	}
+	base.Path = ""
+	return base, nil
+}
+
+func (c *Client) Create(ctx context.Context, environment string, input flags.CreateInput) (flags.Flag, error) {
+	if err := input.Validate(environment); err != nil {
+		return flags.Flag{}, err
+	}
+	request := struct {
+		Key         string `json:"key"`
+		Description string `json:"description"`
+		Enabled     bool   `json:"enabled"`
+	}{input.Key, input.Description, input.Enabled}
+	var response flagResponse
+	if err := c.do(ctx, http.MethodPost, flagsPath(environment), request, http.StatusCreated, &response); err != nil {
+		return flags.Flag{}, err
+	}
+	flag, err := response.flag(environment)
+	if err != nil || flag.Key != input.Key {
+		return flags.Flag{}, errors.New("flag service returned an invalid creation response; list flags before retrying")
+	}
+	return flag, nil
+}
+
+func (c *Client) List(ctx context.Context, environment string) ([]flags.Flag, error) {
+	if err := flags.ValidateEnvironment(environment); err != nil {
+		return nil, err
+	}
+	var response struct {
+		Flags []flagResponse `json:"flags"`
+	}
+	if err := c.do(ctx, http.MethodGet, flagsPath(environment), nil, http.StatusOK, &response); err != nil {
+		return nil, err
+	}
+	if response.Flags == nil {
+		return nil, errors.New("flag service returned an invalid list response")
+	}
+	result := make([]flags.Flag, 0, len(response.Flags))
+	for _, item := range response.Flags {
+		flag, err := item.flag(environment)
+		if err != nil {
+			return nil, errors.New("flag service returned an invalid flag in its list response")
+		}
+		result = append(result, flag)
+	}
+	return result, nil
+}
+
+func flagsPath(environment string) string {
+	return "/v1/environments/" + environment + "/flags"
+}
+
+func (c *Client) do(ctx context.Context, method, path string, payload any, expectedStatus int, result any) error {
+	var body io.Reader
+	if payload != nil {
+		encoded, err := json.Marshal(payload)
+		if err != nil {
+			return errors.New("could not encode flag request")
+		}
+		body = bytes.NewReader(encoded)
+	}
+	endpoint := c.baseURL
+	endpoint.Path = path
+	request, err := http.NewRequestWithContext(ctx, method, endpoint.String(), body)
+	if err != nil {
+		return errors.New("could not construct flag request")
+	}
+	request.Header.Set("Accept", "application/json")
+	if payload != nil {
+		request.Header.Set("Content-Type", "application/json")
+	}
+	response, err := c.http.Do(request)
+	if err != nil {
+		return requestError(err)
+	}
+	defer response.Body.Close()
+	data, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
+	if err != nil {
+		return requestError(err)
+	}
+	if len(data) > maxResponseBytes {
+		return errors.New("flag service response exceeds the 8 MiB limit")
+	}
+	if response.StatusCode != expectedStatus {
+		return parseAPIError(response.StatusCode, data)
+	}
+	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" || json.Unmarshal(data, result) != nil {
+		return errors.New("flag service returned an invalid JSON response")
+	}
+	return nil
+}
+
+func requestError(err error) error {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return errors.New("flag request canceled")
+	case errors.Is(err, context.DeadlineExceeded):
+		return errors.New("flag request timed out; check the service or increase --timeout")
+	default:
+		// Transport errors may include URLs or server-provided content. Never
+		// print them verbatim, nor raw response bodies or remote error messages.
+		return errors.New("could not communicate with flag service; check --server, ensure flagd is running, and check TLS trust if using HTTPS")
+	}
+}
+
+// APIError exposes stable status/code information for callers without reflecting
+// a potentially sensitive or terminal-active remote error message.
+type APIError struct {
+	StatusCode int
+	Code       string
+}
+
+var errorMessages = map[string]string{
+	"invalid_request":        "flag service rejected the request",
+	"forbidden":              "flag service refused access; check the service address",
+	"not_found":              "flag or API route was not found",
+	"method_not_allowed":     "flag service does not support this operation",
+	"already_exists":         "a flag with this key already exists in this environment",
+	"request_too_large":      "flag request is too large",
+	"unsupported_media_type": "flag service requires a supported JSON content type",
+	"internal_error":         "flag service could not complete the operation",
+}
+
+func (e *APIError) Error() string {
+	if message, ok := errorMessages[e.Code]; ok {
+		return fmt.Sprintf("%s (HTTP %d, %s)", message, e.StatusCode, e.Code)
+	}
+	if e.StatusCode >= 300 && e.StatusCode < 400 {
+		return fmt.Sprintf("flag service returned HTTP %d; redirects are not followed", e.StatusCode)
+	}
+	return fmt.Sprintf("flag service returned unexpected HTTP %d", e.StatusCode)
+}
+
+func parseAPIError(status int, body []byte) error {
+	var response struct {
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	result := &APIError{StatusCode: status}
+	if json.Unmarshal(body, &response) == nil {
+		if _, known := errorMessages[response.Error.Code]; known {
+			result.Code = response.Error.Code
+		}
+	}
+	return result
+}
+
+type flagResponse struct {
+	Key         string    `json:"key"`
+	Environment string    `json:"environment"`
+	Description *string   `json:"description"`
+	Enabled     *bool     `json:"enabled"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+func (response flagResponse) flag(environment string) (flags.Flag, error) {
+	invalid := errors.New("invalid flag response")
+	if response.Environment != environment || response.Description == nil || response.Enabled == nil ||
+		response.CreatedAt.IsZero() || response.UpdatedAt.IsZero() {
+		return flags.Flag{}, invalid
+	}
+	input := flags.CreateInput{Key: response.Key, Description: *response.Description, Enabled: *response.Enabled}
+	if input.Validate(environment) != nil {
+		return flags.Flag{}, invalid
+	}
+	return flags.Flag{
+		Key: input.Key, Environment: environment, Description: input.Description,
+		Enabled: input.Enabled, CreatedAt: response.CreatedAt, UpdatedAt: response.UpdatedAt,
+	}, nil
+}

@@ -1,7 +1,7 @@
 # flagctl implementation plan
 
-Status: steps 1 and 2 (the persistent flag service) are complete and verified;
-step 3a (shared HTTP client and Cobra create/list commands) is next.
+Status: steps 1, 2, and 3a (shared HTTP client and Cobra create/list commands) are
+complete and verified. Step 3b (CLI get, toggle, and delete) is next.
 
 ## Goal
 
@@ -31,7 +31,8 @@ system Go 1.25.5 is outside the currently security-supported release lines.
   through `--data-dir`.
 - The service owns validation and persistence. Both clients use the HTTP API;
   neither accesses the database directly.
-- Use Cobra for CLI commands and the Terraform Plugin Framework for the provider.
+- CLI create/list use pinned Cobra v1.10.2 through a shared HTTP client. The
+  Terraform provider will use the Plugin Framework and that same client.
 - Start as a local, single-instance service. Step 1 enforces literal loopback
   listen addresses; authentication and encrypted transport are prerequisites
   for any future network access. No API credentials are needed or loaded now.
@@ -130,6 +131,13 @@ Build the shared HTTP client, then `flags create` and `flags list`. Follow with
 `--server` / `FLAGCTL_SERVER`, request timeouts, help, and `--output table|json`.
 Keep successful machine-readable output on stdout, errors on stderr, and return
 nonzero exit codes for failures.
+
+Completed checkpoint 3a: shared HTTP create/list client, Cobra commands, required
+environments, server flag/environment/default precedence, timeouts, cancellation,
+table/JSON output, and errors with nonzero exit codes. Verified against a real
+service and local servers returning malformed, oversized, delayed, and redirect
+responses. Endpoint credentials are rejected, proxies are bypassed, and table
+cells escape terminal controls. Get/toggle/delete remain the next increment.
 
 Planned usage examples; these become README quickstart commands after validation:
 
