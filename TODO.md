@@ -56,17 +56,17 @@ Then, updates and deletion:
 - [x] Add verified create/list CLI examples to the README.
 - [x] Extend the README with get/toggle/delete CLI examples.
 
-## 4. Terraform provider — next
+## 4. Terraform provider — complete (local build)
 
-- [ ] Scaffold the Plugin Framework entry point and endpoint configuration.
-- [ ] Define the `flagctl_flag` resource schema and stable environment/key ID.
-- [ ] Implement create/read/update/delete through the shared client.
-- [ ] Add import and replacement for changes to environment/key.
-- [ ] Handle refresh after external changes and external deletion.
-- [ ] Document local provider installation and add a runnable Terraform example.
-- [ ] Verify apply, no-op plan, update, import, CLI-induced drift, and destroy.
+- [x] Scaffold the Plugin Framework entry point and endpoint configuration.
+- [x] Define the `flagctl_flag` resource schema and stable environment/key ID.
+- [x] Implement create/read/update/delete through the shared client.
+- [x] Add import and replacement for changes to environment/key.
+- [x] Handle refresh after external changes and external deletion.
+- [x] Document local provider installation and add a runnable Terraform example.
+- [x] Verify apply, no-op plan, update, import, CLI-induced drift, and destroy.
 
-## 5. Tests and compatibility — after core features
+## 5. Tests and compatibility — next
 
 - [ ] Add unit tests for validation, HTTP handlers, client errors, and CLI behavior.
 - [ ] Add SQLite integration tests with temporary databases and restart coverage.
@@ -193,3 +193,30 @@ Then, updates and deletion:
   verification checks; the committed Go unit/acceptance suites are still planned
   for step 5. Test databases were removed and local verification servers stopped.
   No user data or real credentials were used in the checks.
+- 2026-09-13, step 4: Added Plugin Framework v1.19.0, the provider executable,
+  endpoint/timeout configuration, and the `flagctl_flag` resource. Verified with
+  Terraform 1.16.1 on macOS arm64 through a local development override, using
+  temporary Terraform workspaces and real isolated flagd databases. No Registry
+  publication, cloud accounts, credentials, or global Terraform configuration
+  changes were required.
+- 2026-09-13, step 4: Schema/validate, default values, parallel dev/prod creation,
+  apply, no-op plans, explicit true/false, description clearing, timestamp
+  preservation, CLI drift reconciliation, import, and destroy passed. Verified
+  external deletion plans recreation, key/environment changes require replacement,
+  and deletion between a saved destroy plan and apply succeeds. Duplicate creates
+  preserved unmanaged flags; invalid/missing imports failed without adopting them.
+- 2026-09-13, step 4: Configuration and identifier validation, UTF-8 byte limits,
+  unknown provider values, server/environment precedence, timeouts, and connection
+  failures passed. Refresh errors retained state. Synthetic credential-bearing
+  environment values and remote error details were absent from diagnostics. The
+  published example configuration was copied into an isolated workspace and
+  verified through validate, apply, an empty second plan, and destroy.
+- 2026-09-13, step 4: The initial dependency scan identified vulnerable framework
+  transitive dependencies. Pinned patched gRPC v1.82.1, x/net v0.56.0, and x/text
+  v0.39.0; the final `govulncheck@v1.8.0` run reported `No vulnerabilities found.`
+  Rebuilt the provider and reran its lifecycle checks after dependency updates.
+  All three CGO-disabled builds, vet, module verification, Go/Terraform formatting,
+  and whitespace checks passed. Existing CLI create/list and full-lifecycle
+  regression checks passed as well. All verification servers stopped and
+  temporary state/databases were removed. These remain one-off checks; committed
+  automated Go and provider acceptance suites are the next increment.

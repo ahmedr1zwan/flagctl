@@ -1,4 +1,4 @@
-// Package client implements the HTTP API shared by flagctl and the future
+// Package client implements the HTTP API shared by flagctl and the
 // Terraform provider. It does not access database files or load credentials.
 package client
 

@@ -1,7 +1,8 @@
 # flagctl implementation plan
 
-Status: steps 1, 2, and 3 (the service and complete Cobra CLI lifecycle) are
-complete and verified. Step 4, the Terraform provider, is next.
+Status: steps 1–4 (the service, Cobra CLI, and Terraform provider) are complete
+and verified locally. Step 5, automated test suites and compatibility evidence,
+is next. Provider Registry publication is not part of the completed checkpoint.
 
 ## Goal
 
@@ -32,7 +33,7 @@ system Go 1.25.5 is outside the currently security-supported release lines.
 - The service owns validation and persistence. Both clients use the HTTP API;
   neither accesses the database directly.
 - CLI commands use pinned Cobra v1.10.2 through a shared HTTP client. The
-  Terraform provider will use the Plugin Framework and that same client.
+  Terraform provider uses pinned Plugin Framework v1.19.0 and that same client.
 - Start as a local, single-instance service. Step 1 enforces literal loopback
   listen addresses; authentication and encrypted transport are prerequisites
   for any future network access. No API credentials are needed or loaded now.
@@ -146,7 +147,7 @@ dev/prod isolation, restart persistence, missing-record errors, and table/JSON
 output. Local adverse-response checks cover wrong identities/states, safe errors,
 bodyless 204 responses, no redirects, timeout, and cancellation. Shared client
 checks also verified empty descriptions, combined updates, and typed 404 errors.
-The next increment is the Terraform provider; dedicated Go suites remain in step 5.
+The Terraform provider was added in step 4; dedicated Go suites remain in step 5.
 
 Verified usage examples (also included in the README):
 
@@ -173,7 +174,7 @@ Start with a local provider installation and document its setup. Terraform
 Registry publication is an optional follow-up, separate from GitHub binary
 releases. A data source is also optional.
 
-Planned resource example:
+Implemented resource example:
 
 ```hcl
 resource "flagctl_flag" "checkout" {
@@ -186,6 +187,16 @@ resource "flagctl_flag" "checkout" {
 
 Checkpoint: apply creates the flag, a second plan has no changes, an enabled-state
 edit updates it, import works, a CLI edit produces drift, and destroy removes it.
+
+Completed checkpoint 4: the provider manages `flagctl_flag` with defaults,
+immutable environment/key, timestamps, complete CRUD, and `environment/key`
+import. Verified with Terraform 1.16.1 using isolated state and real service
+instances: apply, no-op plans, mutable-field updates/clearing, CLI drift, external
+deletion, key/environment replacement, import, and destroy. Errors preserve
+state and unmanaged flags are not silently adopted. Configuration validation,
+unknown provider values, endpoint precedence, timeouts, and sanitized diagnostics
+were exercised. The local setup and runnable example are documented in
+[docs/terraform.md](docs/terraform.md). Automated acceptance suites remain in step 5.
 
 ### 5. Automated tests and API compatibility evidence
 

@@ -4,24 +4,26 @@ Manage boolean feature flags independently across environments through a
 versioned REST API. Built in Go with SQLite persistence, flagctl supports the
 complete flag lifecycle: create, list, read, enable/disable, edit, and delete.
 The Cobra CLI supports create, list, get, toggle, and delete with table or JSON output.
+The Terraform Plugin Framework provider manages the same flags declaratively,
+including import and drift reconciliation.
 
 | Component | Status |
 | --- | --- |
 | Go REST service and persistent SQLite storage | Implemented |
 | Environment isolation, input validation, and local access protections | Implemented |
 | Cobra CLI lifecycle with JSON/table output | Implemented |
-| Terraform Plugin Framework provider | Next |
+| Terraform Plugin Framework provider lifecycle, import, and drift | Implemented; local build |
 | Automated Go tests, Docker, CI, and published binaries | Planned |
 
 The service is currently for local development. Manual verification results and
 the remaining milestones are recorded in [TODO.md](TODO.md) and [PLAN.md](PLAN.md).
 
-Architecture (dashed arrows show planned clients):
+Architecture:
 
 ```mermaid
 flowchart LR
     CLI["Cobra CLI"] --> Client["Shared Go HTTP client"]
-    Terraform["Terraform provider (planned)"] -.-> Client
+    Terraform["Terraform provider"] --> Client
     Client --> API["Go REST API (/v1)"]
     API --> DB[(SQLite)]
 ```
@@ -173,6 +175,36 @@ if a mutation times out, is interrupted, or returns an invalid response, use
 service may already have committed the change. Restarting `flagd` with the same
 data directory preserves creations, updates, and deletions made through the CLI.
 
+## Manage flags with Terraform
+
+The local provider exposes one `flagctl_flag` resource:
+
+```hcl
+terraform {
+  required_providers {
+    flagctl = {
+      source = "ahmedr1zwan/flagctl"
+    }
+  }
+}
+
+provider "flagctl" {}
+
+resource "flagctl_flag" "checkout" {
+  environment = "dev"
+  key         = "terraform_checkout"
+  description = "Checkout managed by Terraform"
+  enabled     = true
+}
+```
+
+Build and configure the local provider using the [Terraform guide](docs/terraform.md),
+then run the [example](examples/terraform/main.tf). The guide covers apply,
+no-op plans, updates, CLI-induced drift, import, replacement, and destroy.
+The provider has not been published to the Terraform Registry; the guide uses
+a development override and skips `terraform init` for this local example.
+No API keys or cloud account are needed.
+
 ## Create and read flags over REST
 
 With the service running, use a second terminal:
@@ -317,7 +349,7 @@ To repeat the known-vulnerability check (requires internet access):
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
-The step 3b scan reported `No vulnerabilities found.` The scanner is a development
+The step 4 scan reported `No vulnerabilities found.` The scanner is a development
 tool and does not add a dependency to the application module. It checks known
 vulnerabilities, not every possible security defect.
 
@@ -345,6 +377,9 @@ vulnerabilities, not every possible security defect.
   configured local service. It neither reads the database nor loads credentials.
   Help does not print the environment-provided server value, and errors do not
   echo raw transport errors, response bodies, or remote error messages.
+- The Terraform provider shares those HTTP protections. Terraform state and
+  plans contain flag values and descriptions; keep them private. The provider
+  does not load API credentials. Local provider overrides are development-only.
 - `.gitignore` excludes common `.env`, private-key, credential, database, and
   Terraform state/plan files. Ignore rules are a guardrail: they do not detect
   secrets pasted into source, protect already tracked files, or encrypt data.
@@ -363,6 +398,10 @@ constitute a production security audit.
 - `cmd/flagd/main.go`: options, loopback enforcement, server limits, and shutdown.
 - `cmd/flagctl/main.go` and `internal/cli/`: Cobra commands, output, and cancellation.
 - `internal/client/`: shared HTTP client, endpoint validation, and typed API errors.
+- `cmd/terraform-provider-flagctl/` and `internal/provider/`: provider configuration,
+  flag schema, lifecycle, import, and state refresh.
+- [Terraform guide](docs/terraform.md) and [example](examples/terraform/main.tf):
+  build and run the local provider.
 - `internal/api/`: routing, Host/origin protections, strict request decoding, and JSON errors.
 - `internal/flags/flag.go`: flag model and input validation.
 - `internal/store/`: private SQLite files, schema initialization, and flag queries.

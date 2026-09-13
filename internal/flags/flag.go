@@ -56,7 +56,7 @@ func (input CreateInput) Validate(environment string) error {
 	if err := ValidateIdentity(environment, input.Key); err != nil {
 		return err
 	}
-	return validateDescription(input.Description)
+	return ValidateDescription(input.Description)
 }
 
 // UpdateInput uses pointers to distinguish omitted fields from explicit false
@@ -74,12 +74,13 @@ func (input UpdateInput) Validate(environment, key string) error {
 		return errors.New("update must include enabled or description")
 	}
 	if input.Description != nil {
-		return validateDescription(*input.Description)
+		return ValidateDescription(*input.Description)
 	}
 	return nil
 }
 
-func validateDescription(description string) error {
+// ValidateDescription checks the shared API and Terraform description limit.
+func ValidateDescription(description string) error {
 	if !utf8.ValidString(description) || len(description) > 1024 {
 		return errors.New("description must be valid UTF-8 and at most 1024 bytes")
 	}
