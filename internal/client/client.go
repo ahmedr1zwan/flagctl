@@ -133,6 +133,51 @@ func (c *Client) List(ctx context.Context, environment string) ([]flags.Flag, er
 	return result, nil
 }
 
+func (c *Client) Get(ctx context.Context, environment, key string) (flags.Flag, error) {
+	if err := flags.ValidateIdentity(environment, key); err != nil {
+		return flags.Flag{}, err
+	}
+	var response flagResponse
+	if err := c.do(ctx, http.MethodGet, flagsPath(environment)+"/"+key, nil, http.StatusOK, &response); err != nil {
+		return flags.Flag{}, err
+	}
+	flag, err := response.flag(environment)
+	if err != nil || flag.Key != key {
+		return flags.Flag{}, errors.New("flag service returned an invalid get response")
+	}
+	return flag, nil
+}
+
+// Update sets only supplied fields. Explicit false and empty descriptions must
+// be sent, while omitted fields must remain untouched by the service.
+func (c *Client) Update(ctx context.Context, environment, key string, input flags.UpdateInput) (flags.Flag, error) {
+	if err := input.Validate(environment, key); err != nil {
+		return flags.Flag{}, err
+	}
+	request := struct {
+		Description *string `json:"description,omitempty"`
+		Enabled     *bool   `json:"enabled,omitempty"`
+	}{input.Description, input.Enabled}
+	var response flagResponse
+	if err := c.do(ctx, http.MethodPatch, flagsPath(environment)+"/"+key, request, http.StatusOK, &response); err != nil {
+		return flags.Flag{}, err
+	}
+	flag, err := response.flag(environment)
+	if err != nil || flag.Key != key ||
+		(input.Enabled != nil && flag.Enabled != *input.Enabled) ||
+		(input.Description != nil && flag.Description != *input.Description) {
+		return flags.Flag{}, errors.New("flag service returned an invalid update response; use flags get to confirm the current state")
+	}
+	return flag, nil
+}
+
+func (c *Client) Delete(ctx context.Context, environment, key string) error {
+	if err := flags.ValidateIdentity(environment, key); err != nil {
+		return err
+	}
+	return c.do(ctx, http.MethodDelete, flagsPath(environment)+"/"+key, nil, http.StatusNoContent, nil)
+}
+
 func flagsPath(environment string) string {
 	return "/v1/environments/" + environment + "/flags"
 }
@@ -170,6 +215,10 @@ func (c *Client) do(ctx context.Context, method, path string, payload any, expec
 	}
 	if response.StatusCode != expectedStatus {
 		return parseAPIError(response.StatusCode, data)
+	}
+	// DELETE acknowledges success with 204, without a JSON body or content type.
+	if expectedStatus == http.StatusNoContent {
+		return nil
 	}
 	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" || json.Unmarshal(data, result) != nil {

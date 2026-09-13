@@ -44,19 +44,19 @@ Then, updates and deletion:
 - [x] Verify enable, disable, description clearing, and deletion through HTTP.
 - [x] Extend the README with verified update/delete examples.
 
-## 3. CLI — create/list complete; get/toggle/delete next
+## 3. CLI — complete
 
 - [x] Add the shared HTTP client with context, timeout, and API error handling.
 - [x] Add Cobra root command, server configuration, and required environment option.
 - [x] Implement `flags create` and `flags list` against the real service.
-- [ ] Implement `flags get`, `flags toggle --enabled=...`, and `flags delete`.
+- [x] Implement `flags get`, `flags toggle --enabled=...`, and `flags delete`.
 - [x] Add table and JSON output, help, stderr errors, and failure exit codes.
 - [x] Verify create/list across dev/prod, output parsing, and connection errors.
-- [ ] Verify the lifecycle across dev/prod, parseable JSON, and connection errors.
+- [x] Verify the lifecycle across dev/prod, parseable JSON, and connection errors.
 - [x] Add verified create/list CLI examples to the README.
-- [ ] Extend the README with get/toggle/delete CLI examples.
+- [x] Extend the README with get/toggle/delete CLI examples.
 
-## 4. Terraform provider
+## 4. Terraform provider — next
 
 - [ ] Scaffold the Plugin Framework entry point and endpoint configuration.
 - [ ] Define the `flagctl_flag` resource schema and stable environment/key ID.
@@ -174,3 +174,22 @@ Then, updates and deletion:
   not echoed; proxy settings were bypassed and table control characters escaped.
   All verification servers were stopped and isolated databases removed. Dedicated
   Go unit and acceptance suites remain deferred.
+- 2026-09-13, step 3b: Re-ran the existing create/list checks before extending
+  the CLI, then ran them again after the shared client changes. Added get,
+  explicit-state toggle, and delete; complete real-service lifecycle checks
+  passed with table/JSON output, required arguments/environment/state, no-op
+  timestamps, description preservation, dev/prod isolation, and missing records.
+- 2026-09-13, step 3b: Verified updates persist across restart and deletions remain
+  absent after another restart. Invalid CLI inputs made no HTTP requests. A fake
+  local server verified exact methods and paths, false PATCH values with omitted
+  descriptions, bodyless 204 handling, rejection of incorrect identities/states
+  and malformed responses, additive fields, sanitized errors, redirect refusal,
+  and timeout/cancellation for each new command. No command-level retries occurred.
+- 2026-09-13, step 3b: Direct shared-client checks passed for partial and combined
+  updates, explicit empty descriptions and false values, unchanged omitted
+  fields, no-op timestamps, input validation, and typed API 404 errors. CGO-disabled
+  builds, vet, module verification, formatting, and whitespace checks passed.
+  `govulncheck@v1.8.0` reported no known vulnerabilities. These are one-off
+  verification checks; the committed Go unit/acceptance suites are still planned
+  for step 5. Test databases were removed and local verification servers stopped.
+  No user data or real credentials were used in the checks.

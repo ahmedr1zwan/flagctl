@@ -39,16 +39,16 @@ func NewCommand(stdout, stderr io.Writer) *cobra.Command {
 	root.CompletionOptions.DisableDefaultCmd = true
 	flagCommands := &cobra.Command{
 		Use:   "flags",
-		Short: "Create and list flags across environments",
+		Short: "Create, list, get, toggle, and delete flags across environments",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return errors.New("choose a supported flag command: create or list; use flags --help")
+			return errors.New("choose a supported flag command: create, list, get, toggle, or delete; use flags --help")
 		},
 	}
 	flagCommands.PersistentFlags().StringVar(&options.environment, "env", "", "environment name (required)")
 	if err := flagCommands.MarkPersistentFlagRequired("env"); err != nil {
 		panic(err) // Programming error: the flag is registered just above.
 	}
-	flagCommands.AddCommand(newCreateCommand(options), newListCommand(options))
+	flagCommands.AddCommand(newCreateCommand(options), newListCommand(options), newGetCommand(options), newToggleCommand(options), newDeleteCommand(options))
 	root.AddCommand(flagCommands)
 	return root
 }

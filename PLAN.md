@@ -1,7 +1,7 @@
 # flagctl implementation plan
 
-Status: steps 1, 2, and 3a (shared HTTP client and Cobra create/list commands) are
-complete and verified. Step 3b (CLI get, toggle, and delete) is next.
+Status: steps 1, 2, and 3 (the service and complete Cobra CLI lifecycle) are
+complete and verified. Step 4, the Terraform provider, is next.
 
 ## Goal
 
@@ -31,7 +31,7 @@ system Go 1.25.5 is outside the currently security-supported release lines.
   through `--data-dir`.
 - The service owns validation and persistence. Both clients use the HTTP API;
   neither accesses the database directly.
-- CLI create/list use pinned Cobra v1.10.2 through a shared HTTP client. The
+- CLI commands use pinned Cobra v1.10.2 through a shared HTTP client. The
   Terraform provider will use the Plugin Framework and that same client.
 - Start as a local, single-instance service. Step 1 enforces literal loopback
   listen addresses; authentication and encrypted transport are prerequisites
@@ -83,7 +83,7 @@ and disallow `/` so identities remain unambiguous. Keep list ordering stable.
 PATCH must distinguish an omitted field from `enabled: false` or an empty
 description. Environment and key are immutable identifiers.
 
-The CLI command `flags toggle` will require an explicit target state through
+The CLI command `flags toggle` requires an explicit target state through
 `--enabled=true` or `--enabled=false`. It uses PATCH to set that state, so repeating
 the command does not reverse an earlier successful change. This also matches
 Terraform's declarative updates. Document this command behavior clearly.
@@ -118,7 +118,7 @@ Completed checkpoint 2b: transactional partial updates, explicit enable/disable,
 description clearing, no-op timestamp preservation, deletion, and missing-record
 handling. Creation/read regression checks and update/delete concurrency,
 persistence, validation, and security checks passed. The dedicated Go test suite
-is still deferred. Next is the shared client and Cobra create/list increment.
+is still deferred. The shared client and Cobra CLI were added in step 3.
 
 Checkpoint: use curl to create, list, read, enable, disable, and delete flags.
 Verify the same key is isolated between `dev` and `prod`, duplicate creation
@@ -137,9 +137,18 @@ environments, server flag/environment/default precedence, timeouts, cancellation
 table/JSON output, and errors with nonzero exit codes. Verified against a real
 service and local servers returning malformed, oversized, delayed, and redirect
 responses. Endpoint credentials are rejected, proxies are bypassed, and table
-cells escape terminal controls. Get/toggle/delete remain the next increment.
+cells escape terminal controls.
 
-Planned usage examples; these become README quickstart commands after validation:
+Completed checkpoint 3b: shared client get/update/delete and CLI get/toggle/delete.
+Toggle requires an explicit target value and sends only the enabled field.
+Verified the complete lifecycle, no-op timestamps, description preservation,
+dev/prod isolation, restart persistence, missing-record errors, and table/JSON
+output. Local adverse-response checks cover wrong identities/states, safe errors,
+bodyless 204 responses, no redirects, timeout, and cancellation. Shared client
+checks also verified empty descriptions, combined updates, and typed 404 errors.
+The next increment is the Terraform provider; dedicated Go suites remain in step 5.
+
+Verified usage examples (also included in the README):
 
 ```sh
 flagctl flags create checkout_v2 --env dev --description "New checkout"

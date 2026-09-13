@@ -3,15 +3,14 @@
 Manage boolean feature flags independently across environments through a
 versioned REST API. Built in Go with SQLite persistence, flagctl supports the
 complete flag lifecycle: create, list, read, enable/disable, edit, and delete.
-The Cobra CLI currently supports creating and listing flags with table or JSON output.
+The Cobra CLI supports create, list, get, toggle, and delete with table or JSON output.
 
 | Component | Status |
 | --- | --- |
 | Go REST service and persistent SQLite storage | Implemented |
 | Environment isolation, input validation, and local access protections | Implemented |
-| Cobra CLI create/list with JSON/table output | Implemented |
-| CLI get, toggle, and delete | Next |
-| Terraform Plugin Framework provider | Planned |
+| Cobra CLI lifecycle with JSON/table output | Implemented |
+| Terraform Plugin Framework provider | Next |
 | Automated Go tests, Docker, CI, and published binaries | Planned |
 
 The service is currently for local development. Manual verification results and
@@ -21,7 +20,7 @@ Architecture (dashed arrows show planned clients):
 
 ```mermaid
 flowchart LR
-    CLI["Cobra CLI (create/list)"] --> Client["Shared Go HTTP client"]
+    CLI["Cobra CLI"] --> Client["Shared Go HTTP client"]
     Terraform["Terraform provider (planned)"] -.-> Client
     Client --> API["Go REST API (/v1)"]
     API --> DB[(SQLite)]
@@ -103,7 +102,7 @@ create fails with a useful `HTTP 409, already_exists` error and leaves the recor
 unchanged. The CLI and curl examples below share the same demo flags, so run either
 creation example first; the other will then report a duplicate.
 
-JSON create output is one flag object; JSON list output is `{"flags":[...]}`.
+JSON create/get/toggle output is one flag object; JSON list output is `{"flags":[...]}`.
 An empty environment produces `{"flags":[]}`, or just the header in table mode.
 Successful output goes to stdout; errors go to stderr with exit code 1 and no
 result on stdout. Use JSON for scripts; table descriptions escape control
@@ -114,6 +113,39 @@ characters and line breaks. For example:
 ./bin/flagctl flags create --help
 ./bin/flagctl flags list --help
 ```
+
+Continue the CLI demo with the dev and prod flags created above:
+
+```sh
+# Read one flag, including its timestamps.
+./bin/flagctl flags get checkout_v2 --env dev --output json
+
+# Set an explicit state. Repeating the command preserves that state.
+./bin/flagctl flags toggle checkout_v2 --env dev --enabled=true
+./bin/flagctl flags toggle checkout_v2 --env dev --enabled=false --output json
+
+# Delete only the dev flag. The prod flag remains available.
+./bin/flagctl flags delete checkout_v2 --env dev --output json
+./bin/flagctl flags get checkout_v2 --env prod
+```
+
+`toggle` requires `--enabled=true` or `--enabled=false`; omitting the option or
+its value fails before making a request. It preserves the description and
+creation timestamp. Repeating a command that changes nothing also preserves
+the update timestamp. Get, toggle, and delete each require exactly one key and
+an explicit environment. A missing flag returns `HTTP 404, not_found`; a second
+delete also fails with 404.
+
+After the service acknowledges deletion with HTTP 204, the CLI produces this
+JSON confirmation (the REST response itself has no body):
+
+```json
+{"environment":"dev","key":"checkout_v2","deleted":true}
+```
+
+The default delete table uses `ENVIRONMENT`, `KEY`, and `DELETED` columns.
+These commands remove the dev demo flag; create it again if you want to try
+the REST update examples below.
 
 Server configuration uses this precedence: explicit `--server`, then a nonempty
 `FLAGCTL_SERVER`, then `http://127.0.0.1:8080`. `--timeout` defaults to `10s` and must
@@ -136,12 +168,10 @@ uses normal certificate verification and provides no insecure bypass.
 
 Stop `flagd` and repeat `flags list` to check connection-error handling. Ctrl+C
 cancels an in-progress request. The CLI does not automatically retry operations:
-if creation times out or is interrupted, list flags before retrying, because the
-service may already have committed the record. Restarting `flagd` with the same
-data directory preserves flags created through the CLI.
-
-CLI `get`, `toggle`, and `delete` are the next increment; use the REST endpoints
-below for those operations for now.
+if a mutation times out, is interrupted, or returns an invalid response, use
+`flags get` or `flags list` to check the current state before retrying. The
+service may already have committed the change. Restarting `flagd` with the same
+data directory preserves creations, updates, and deletions made through the CLI.
 
 ## Create and read flags over REST
 
@@ -287,7 +317,7 @@ To repeat the known-vulnerability check (requires internet access):
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
-The step 3a scan reported `No vulnerabilities found.` The scanner is a development
+The step 3b scan reported `No vulnerabilities found.` The scanner is a development
 tool and does not add a dependency to the application module. It checks known
 vulnerabilities, not every possible security defect.
 
