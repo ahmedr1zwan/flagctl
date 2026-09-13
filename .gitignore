@@ -1,0 +1,46 @@
+# Local builds, caches, and verification output.
+/bin/
+/dist/
+/.cache/
+/flagd
+/flagctl
+/terraform-provider-flagctl
+*.test
+*.out
+*.log
+.DS_Store
+
+# Local configuration and credentials. Examples must contain placeholders only.
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+credentials.json
+secrets/
+
+# Service data and SQLite sidecar files.
+/data/
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+*.sqlite3
+*.sqlite3-*
+
+# Terraform state, plans, and local credentials can contain secrets.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+*.tfvars.backup
+crash.log
+crash.*.log
+.terraformrc
+terraform.rc
