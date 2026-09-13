@@ -136,6 +136,66 @@ func (s *Store) Get(ctx context.Context, environment, key string) (flags.Flag, e
 	return flag, err
 }
 
+// Update reads and writes within one transaction. Concurrent partial updates
+// preserve omitted fields, and a no-op keeps the original update timestamp.
+func (s *Store) Update(ctx context.Context, environment, key string, input flags.UpdateInput) (flags.Flag, error) {
+	if err := input.Validate(environment, key); err != nil {
+		return flags.Flag{}, err
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return flags.Flag{}, err
+	}
+	defer tx.Rollback()
+	current, err := scanFlag(tx.QueryRowContext(ctx, `SELECT
+		key, environment, description, enabled, created_at, updated_at
+		FROM flags WHERE environment = ? AND key = ?`, environment, key))
+	if errors.Is(err, sql.ErrNoRows) {
+		return flags.Flag{}, ErrNotFound
+	}
+	if err != nil {
+		return flags.Flag{}, err
+	}
+	updated := current
+	if input.Enabled != nil {
+		updated.Enabled = *input.Enabled
+	}
+	if input.Description != nil {
+		updated.Description = *input.Description
+	}
+	if updated.Enabled != current.Enabled || updated.Description != current.Description {
+		updated.UpdatedAt = time.Now().UTC()
+		_, err := tx.ExecContext(ctx, `UPDATE flags SET enabled = ?, description = ?, updated_at = ?
+			WHERE environment = ? AND key = ?`, updated.Enabled, updated.Description,
+			updated.UpdatedAt.Format(time.RFC3339Nano), environment, key)
+		if err != nil {
+			return flags.Flag{}, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return flags.Flag{}, err
+	}
+	return updated, nil
+}
+
+func (s *Store) Delete(ctx context.Context, environment, key string) error {
+	if err := flags.ValidateIdentity(environment, key); err != nil {
+		return err
+	}
+	result, err := s.db.ExecContext(ctx, "DELETE FROM flags WHERE environment = ? AND key = ?", environment, key)
+	if err != nil {
+		return err
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if count == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (s *Store) List(ctx context.Context, environment string) ([]flags.Flag, error) {
 	if err := flags.ValidateEnvironment(environment); err != nil {
 		return nil, err

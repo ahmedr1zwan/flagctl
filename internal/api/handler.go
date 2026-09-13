@@ -17,6 +17,8 @@ type FlagStore interface {
 	Create(context.Context, string, flags.CreateInput) (flags.Flag, error)
 	List(context.Context, string) ([]flags.Flag, error)
 	Get(context.Context, string, string) (flags.Flag, error)
+	Update(context.Context, string, string, flags.UpdateInput) (flags.Flag, error)
+	Delete(context.Context, string, string) error
 }
 
 // NewHandler accepts the actual bound address, including the assigned port when

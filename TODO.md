@@ -21,7 +21,7 @@ before moving on. Checkboxes mean implemented and verified, not merely scaffolde
 - [x] Enforce loopback-only listening and verify common credential files are ignored.
 - [x] Use a supported, patched Go toolchain and run a known-vulnerability scan.
 
-## 2. Service — creation/reads complete; updates/deletion next
+## 2. Service — complete
 
 First, persistent creation and reads:
 
@@ -37,14 +37,14 @@ First, persistent creation and reads:
 
 Then, updates and deletion:
 
-- [ ] Implement PATCH with explicit boolean state and optional description.
-- [ ] Implement deletion and missing-record behavior.
+- [x] Implement PATCH with explicit boolean state and optional description.
+- [x] Implement deletion and missing-record behavior.
 - [x] Add server timeouts, header limits, and graceful shutdown (done in step 1).
-- [ ] Apply the existing JSON body limit and validation rules to PATCH.
-- [ ] Verify enable, disable, description clearing, and deletion using curl.
-- [ ] Extend the README with verified update/delete examples.
+- [x] Apply the existing JSON body limit and validation rules to PATCH.
+- [x] Verify enable, disable, description clearing, and deletion through HTTP.
+- [x] Extend the README with verified update/delete examples.
 
-## 3. CLI — two increments
+## 3. CLI — two increments, next
 
 - [ ] Add the shared HTTP client with context, timeout, and API error handling.
 - [ ] Add Cobra root command, server configuration, and required environment option.
@@ -136,3 +136,23 @@ Then, updates and deletion:
   rejection of unsafe permissions, directory/database/sidecar symlinks, and newer
   schema versions. Temporary test databases were removed and test servers stopped;
   user data was not used. Dedicated Go test suites remain deferred.
+- 2026-09-12, step 2b: Creation/read regression checks and the update/delete HTTP
+  checks passed against isolated real databases. Verified explicit true/false,
+  omitted fields, empty descriptions, combined updates, immutable identity and
+  timestamps, no-op timestamp preservation, missing records, 204 deletion, repeated
+  deletion, environment isolation, and persistence after separate restarts.
+- 2026-09-12, step 2b: Twelve rounds of concurrent description/enabled updates
+  preserved both fields. Concurrent update/delete requests did not recreate deleted
+  records, and duplicate deletes produced one 204 and one 404. Invalid updates,
+  oversized/chunked bodies, nulls, duplicate fields, and cross-origin/Host failures
+  left records unchanged. Synthetic credentials did not appear in logs/errors.
+- 2026-09-12, step 2b: Build with CGO disabled, vet, module verification, formatting,
+  and SQLite integrity checks passed. `govulncheck@v1.8.0` reported no known
+  vulnerabilities. All verification servers were stopped and temporary databases
+  removed. No user data was modified by verification.
+- 2026-09-12, GitHub publication: Existing keyring-backed GitHub authentication
+  provided repository write access; no new keys were needed. Reviewed the staged
+  file list and checked common credential patterns before committing. Published
+  baseline commit `9de54c0` with the verified create/read service. New increments
+  are committed separately, with completed and planned features distinguished in
+  the README.

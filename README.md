@@ -1,20 +1,28 @@
 # flagctl
 
-flagctl is a Go feature-flag service with a planned Cobra CLI and Terraform
-provider. Its goal is to manage boolean flags independently across environments
-through one versioned REST API.
+Manage boolean feature flags independently across environments through a
+versioned REST API. Built in Go with SQLite persistence, flagctl supports the
+complete flag lifecycle: create, list, read, enable/disable, edit, and delete.
 
-**Current status: step 2a, persistent creation and reads.** The service supports
-health checks plus creating, listing, and reading environment-scoped flags in
-SQLite. Updates and deletion are next. The CLI, Terraform provider, automated
-test suites, Docker, CI, and releases remain subsequent steps in
-[PLAN.md](PLAN.md) and [TODO.md](TODO.md).
+| Component | Status |
+| --- | --- |
+| Go REST service and persistent SQLite storage | Implemented |
+| Environment isolation, input validation, and local access protections | Implemented |
+| Cobra CLI with JSON/table output | Next |
+| Terraform Plugin Framework provider | Planned |
+| Automated Go tests, Docker, CI, and published binaries | Planned |
 
-Planned architecture:
+The service is currently for local development. Manual verification results and
+the remaining milestones are recorded in [TODO.md](TODO.md) and [PLAN.md](PLAN.md).
 
-```text
-Cobra CLI ----------> shared Go HTTP client --HTTP /v1--> Go service --> SQLite
-Terraform provider -> shared Go HTTP client -----------^
+Architecture (dashed arrows show planned clients):
+
+```mermaid
+flowchart LR
+    CLI["Cobra CLI (planned)"] -.-> Client["Shared Go client (planned)"]
+    Terraform["Terraform provider (planned)"] -.-> Client
+    Client -.-> API["Go REST API (/v1)"]
+    API --> DB[(SQLite)]
 ```
 
 ## Run the current service
@@ -100,6 +108,37 @@ should still exist. To repeat the whole demo with empty storage, use a **new**
 directory, for example `./bin/flagd --data-dir .cache/demo-2`; this preserves
 your original database.
 
+## Update and delete flags
+
+After creating `checkout_v2` in dev with the commands above:
+
+```sh
+# Enable: 200, enabled=true; description stays unchanged.
+curl --noproxy '*' -i -X PATCH http://127.0.0.1:8080/v1/environments/dev/flags/checkout_v2 \
+  -H 'Content-Type: application/json' -d '{"enabled":true}'
+
+# Disable and clear the description together: 200.
+curl --noproxy '*' -i -X PATCH http://127.0.0.1:8080/v1/environments/dev/flags/checkout_v2 \
+  -H 'Content-Type: application/json' -d '{"enabled":false,"description":""}'
+
+# Delete only the dev flag: 204, no response body.
+curl --noproxy '*' -i -X DELETE http://127.0.0.1:8080/v1/environments/dev/flags/checkout_v2
+
+# Read after deletion: 404. The prod flag is unaffected.
+curl --noproxy '*' -i http://127.0.0.1:8080/v1/environments/dev/flags/checkout_v2
+```
+
+PATCH requires at least one of `enabled` or `description`. Omitted fields stay
+unchanged, `false` disables, and `""` clears the description. Updates preserve
+`created_at`; repeating a PATCH that changes nothing preserves `updated_at` too.
+Identity and timestamps cannot be supplied in a PATCH. Missing records return
+404 for both PATCH and DELETE; a repeated DELETE also returns 404.
+
+Updates use a transaction so concurrent partial edits preserve each other's
+omitted fields. Concurrent changes to the same field use last-write-wins
+semantics. Restart the service after a PATCH to verify the change persists, then
+restart it after DELETE to verify the record stays absent.
+
 ## Data storage
 
 `--data-dir` selects a dedicated directory; its default is `data` relative to the
@@ -143,11 +182,11 @@ curl --noproxy '*' -i http://127.0.0.1:8080/v1/environments/dev/flags \
   -H 'Content-Type: application/json' -d '{"key":"blocked"}'
 ```
 
-Creation requires JSON. Missing/wrong content types return 415, request bodies
+Creation and updates require JSON. Missing/wrong content types return 415, request bodies
 larger than 16 KiB return 413, and invalid JSON/types, unknown/duplicate fields,
 or explicit `null` values return 400. Descriptions are limited to 1,024 UTF-8
-bytes. PATCH and DELETE currently return 405 because they belong to the next
-increment. See the [API contract](docs/api-v1.md) for details.
+bytes. Unsupported methods such as PUT return 405. DELETE requires no JSON body
+or content-type header. See the [API contract](docs/api-v1.md) for details.
 
 Verify the server refuses to expose itself on your network:
 
@@ -180,25 +219,25 @@ To repeat the known-vulnerability check (requires internet access):
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
 ```
 
-The step 2a scan reported `No vulnerabilities found.` The scanner is a development
+The step 2b scan reported `No vulnerabilities found.` The scanner is a development
 tool and does not add a dependency to the application module. It checks known
 vulnerabilities, not every possible security defect.
 
 ## Security and credentials
 
 - This is a local development service. It enforces a loopback-only listener and
-  currently exposes health and flag creation/reads. Local processes can
+  currently exposes health and the flag lifecycle. Local processes can
   reach it; loopback binding is not authentication. Do not expose it with a
   tunnel or reverse proxy. Authentication and transport security must precede
   any future network deployment.
 - HTTP header/read/write/idle timeouts and a header-size limit are configured.
-  Flag creation bodies are limited to 16 KiB, and database operations use a
+  Flag creation/update bodies are limited to 16 KiB, and database operations use a
   bounded request context.
   Responses use `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
   There are no file-serving or debug endpoints and no permissive CORS headers.
 - Host must match the bound IP and port, or `localhost` on that port. Host checks
   defend against DNS rebinding. Go's browser-origin protection rejects unsafe
-  cross-origin requests before they reach flag creation; native clients such as
+  cross-origin requests before they reach mutations; native clients such as
   curl need no Origin header. These checks do not authenticate local clients.
 - The application does not load credential files, read API-key environment
   variables, or send outbound requests. Application logs contain lifecycle
@@ -223,5 +262,5 @@ constitute a production security audit.
 - `internal/api/`: routing, Host/origin protections, strict request decoding, and JSON errors.
 - `internal/flags/flag.go`: flag model and input validation.
 - `internal/store/`: private SQLite files, schema initialization, and flag queries.
-- [API contract](docs/api-v1.md): implemented routes and planned update/delete API.
+- [API contract](docs/api-v1.md): implemented routes, payloads, errors, and compatibility policy.
 - [Plan](PLAN.md) and [checklist](TODO.md): next increments and completion evidence.

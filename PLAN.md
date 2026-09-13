@@ -1,7 +1,7 @@
 # flagctl implementation plan
 
-Status: steps 1 and 2a (persistent creation and reads) are complete and verified;
-step 2b (updates and deletion) is next.
+Status: steps 1 and 2 (the persistent flag service) are complete and verified;
+step 3a (shared HTTP client and Cobra create/list commands) is next.
 
 ## Goal
 
@@ -63,8 +63,9 @@ docs/                          API contract and compatibility policy
 
 Write the exact request/response shapes before implementing the routes. This is
 the proposed surface, not a claim that these endpoints already exist.
-The detailed contract is in [docs/api-v1.md](docs/api-v1.md). Health and flag
-create/list/get are implemented; PATCH and DELETE remain planned.
+The detailed contract is in [docs/api-v1.md](docs/api-v1.md). Health and all flag
+routes below are implemented; the compatibility guarantee still needs its later
+contract and old-client checks.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
@@ -110,8 +111,13 @@ database files private to the running user and avoid logging sensitive inputs.
 Completed checkpoint 2a: SQLite create/list/get, private files, strict JSON and
 body limits, Host validation, browser-origin protection, stable list ordering,
 environment isolation, duplicate rejection, and restart persistence. Verified
-against isolated real databases, including concurrent create requests. Next is
-the PATCH/delete increment; the dedicated Go test suite is still deferred.
+against isolated real databases, including concurrent create requests.
+
+Completed checkpoint 2b: transactional partial updates, explicit enable/disable,
+description clearing, no-op timestamp preservation, deletion, and missing-record
+handling. Creation/read regression checks and update/delete concurrency,
+persistence, validation, and security checks passed. The dedicated Go test suite
+is still deferred. Next is the shared client and Cobra create/list increment.
 
 Checkpoint: use curl to create, list, read, enable, disable, and delete flags.
 Verify the same key is isolated between `dev` and `prod`, duplicate creation

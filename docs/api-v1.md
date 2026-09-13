@@ -1,8 +1,8 @@
 # HTTP API contract
 
-Status: health, flag creation, listing, and lookup are implemented. PATCH and
-DELETE are planned for the next increment and currently return 405. This
-development contract is not yet a released v1 compatibility guarantee.
+Status: health and the complete flag lifecycle are implemented, including PATCH
+and DELETE. This development contract is not yet a released v1 compatibility
+guarantee.
 
 ## Implemented health endpoint
 
@@ -43,15 +43,13 @@ Go's standard HTTP error format instead of the application JSON envelope.
 - `description` defaults to `""`; limit it to 1,024 UTF-8 bytes. It is not a secret.
 - The service generates timestamps in UTC, encoded as RFC 3339 with optional
   fractional seconds. Clients cannot supply or modify them. Updates preserve
-  `created_at`; the upcoming update implementation will preserve `updated_at`
-  for no-op updates too.
+  `created_at`; no-op updates preserve `updated_at` too.
 
 ## Endpoints and payloads
 
 All flag paths begin with `/v1/environments/{env}/flags`. Environment comes from
 the URL, never the request body. POST/PATCH require `Content-Type: application/json`,
-one JSON object, and a body of at most 16 KiB. POST enforces this now; PATCH will
-use the same rules. JSON must be UTF-8 and uncompressed. Reject unknown,
+one JSON object, and a body of at most 16 KiB. JSON must be UTF-8 and uncompressed. Reject unknown,
 case-mismatched, or duplicate request fields and explicit `null` for supplied
 fields. Clients should tolerate additive fields in responses.
 
@@ -60,12 +58,13 @@ fields. Clients should tolerate additive fields in responses.
 | POST | (none) | 201 + flag object + relative Location header | Required `key`; optional `enabled`, `description` | Implemented |
 | GET | (none) | 200 + `{"flags":[...]}` | No body; flags sorted by key ascending; empty list is `[]` | Implemented |
 | GET | `/{key}` | 200 + flag object | No body | Implemented |
-| PATCH | `/{key}` | 200 + updated flag object | At least one of `enabled`, `description` | Planned |
-| DELETE | `/{key}` | 204, no body | No body | Planned |
+| PATCH | `/{key}` | 200 + updated flag object | At least one of `enabled`, `description` | Implemented |
+| DELETE | `/{key}` | 204, no body | No body; no Content-Type required | Implemented |
 
 Both GET routes also support HEAD with the same status and no response body.
 Collection methods other than GET/HEAD/POST return 405 with `Allow: GET, HEAD, POST`.
-Item methods other than GET/HEAD currently return 405 with `Allow: GET, HEAD`.
+Item methods other than GET/HEAD/PATCH/DELETE return 405 with
+`Allow: GET, HEAD, PATCH, DELETE`.
 Listing returns all records for an environment; pagination is outside this
 checkpoint. Duplicate creation returns 409 and never updates the existing flag.
 
@@ -75,7 +74,7 @@ Example create body:
 {"key":"checkout_v2","description":"New checkout","enabled":false}
 ```
 
-Planned update bodies (PATCH is not implemented yet):
+Example update bodies:
 
 ```json
 {"enabled":false}
@@ -85,11 +84,18 @@ Planned update bodies (PATCH is not implemented yet):
 {"description":""}
 ```
 
-In the planned PATCH contract, omitted fields stay unchanged. A supplied `false` disables a flag and an
+In PATCH, omitted fields stay unchanged. A supplied `false` disables a flag and an
 empty description clears it. Repeating an explicit state update keeps that state;
 there is no blind flip endpoint. Updates to an existing record use last-write-wins
 semantics for supplied fields; concurrent conditional updates are outside v1's
 initial scope. Listing an environment with no records returns an empty list.
+
+An empty PATCH object is invalid. Fields `key`, `environment`, `created_at`, and
+`updated_at` are forbidden in PATCH. Updates read and write in one transaction,
+so concurrent partial updates preserve fields omitted by each request. A missing
+flag returns 404; PATCH never creates a record. DELETE removes only the specified
+environment/key, returns 204 without a body or Content-Type, and returns 404 when
+the record is already absent.
 
 ## Errors
 
@@ -99,7 +105,7 @@ Health and flag routes use this envelope:
 {"error":{"code":"not_found","message":"Route not found."}}
 ```
 
-Error codes (DELETE-related behavior remains planned):
+Error codes:
 
 | Status | Code | Meaning |
 | --- | --- | --- |

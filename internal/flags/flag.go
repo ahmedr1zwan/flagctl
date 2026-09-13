@@ -56,7 +56,31 @@ func (input CreateInput) Validate(environment string) error {
 	if err := ValidateIdentity(environment, input.Key); err != nil {
 		return err
 	}
-	if !utf8.ValidString(input.Description) || len(input.Description) > 1024 {
+	return validateDescription(input.Description)
+}
+
+// UpdateInput uses pointers to distinguish omitted fields from explicit false
+// and empty strings. Identity and timestamps cannot be changed by clients.
+type UpdateInput struct {
+	Description *string
+	Enabled     *bool
+}
+
+func (input UpdateInput) Validate(environment, key string) error {
+	if err := ValidateIdentity(environment, key); err != nil {
+		return err
+	}
+	if input.Description == nil && input.Enabled == nil {
+		return errors.New("update must include enabled or description")
+	}
+	if input.Description != nil {
+		return validateDescription(*input.Description)
+	}
+	return nil
+}
+
+func validateDescription(description string) error {
+	if !utf8.ValidString(description) || len(description) > 1024 {
 		return errors.New("description must be valid UTF-8 and at most 1024 bytes")
 	}
 	return nil
