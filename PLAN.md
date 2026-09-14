@@ -1,9 +1,9 @@
 # flagctl implementation plan
 
-Status: steps 1–4 (the service, Cobra CLI, and Terraform provider), step 5a
-(validation, storage, and REST API tests), step 5b (client and command tests),
-and step 5c (provider unit/acceptance tests) are complete and verified locally.
-API compatibility evidence is next. Provider Registry publication remains separate.
+Status: steps 1–5 (service, Cobra CLI, Terraform provider, automated tests, and
+API compatibility evidence) are complete and verified locally. Next is secure
+container access, followed by Docker, CI, and releases. Provider Registry
+publication remains separate.
 
 ## Goal
 
@@ -67,8 +67,8 @@ docs/                          API contract and compatibility policy
 Write the exact request/response shapes before implementing the routes. This is
 the proposed surface, not a claim that these endpoints already exist.
 The detailed contract is in [docs/api-v1.md](docs/api-v1.md). Health and all flag
-routes below are implemented; the compatibility guarantee still needs its later
-contract and old-client checks.
+routes below are implemented. Frozen contract fixtures and an archived client
+now verify the v1 compatibility baseline and the additive response-ID change.
 
 | Method | Path | Behavior |
 | --- | --- | --- |
@@ -249,8 +249,16 @@ detection and shuffled order; provider coverage is 85.5% without acceptance and
 98.4% with acceptance. The dependency scan including test code found no known
 vulnerabilities.
 
-Next add explicit compatibility checks. The overall testing stage is not yet
-complete.
+Completed checkpoint 5d: froze the pre-addition v1 request/response contract and
+archived the client/domain source from commit afd343d in a standalone test module
+with source digests. The client builds without Git history or dependency downloads
+and completes its lifecycle against the current real service. Added a read-only
+`id` (`environment/key`) to flag API responses, preserving the old fixtures and
+client source. New tests verify IDs in create/get/update/list and reject attempts
+to supply them as inputs. Negative controls reject breaking response changes.
+The v1 policy documents stable behavior, additive changes, and major-version
+requirements. Normal tests and Terraform acceptance tests pass after the API
+addition, including race checks. Step 5 is complete.
 
 ### 6. Docker, CI, releases, and final documentation
 

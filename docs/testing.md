@@ -4,7 +4,7 @@ The committed Go suite covers domain validation, SQLite integration, the REST
 API, the shared HTTP client, Cobra commands, the service/CLI entry points, and
 the Terraform provider. The provider acceptance suite uses pinned
 `terraform-plugin-testing` v1.16.0 and runs separately from ordinary Go tests.
-Explicit API compatibility checks are the next increment.
+The normal suite also includes frozen API contract and historical-client checks.
 
 ## Run the current suite
 
@@ -40,6 +40,30 @@ go test ./internal/provider -run '^Test(Provider|Resource|Schema)'
 tests serve the provider in the Go test process using its production protocol
 version; they do not exercise the standalone provider executable's startup.
 The earlier one-off binary smoke checks are separate from this coverage.
+
+## API compatibility checks
+
+```sh
+go test ./internal/api -run '^Test(V1|FlagResponseID)' -count=1
+```
+
+The 31 ordered [wire fixtures](../internal/api/testdata/v1/README.md) protect the
+v1 response shapes, defaults, status codes, headers, partial updates, environment
+isolation, list ordering, empty arrays, and representative errors. They run
+against an isolated SQLite-backed service and permit extra response object fields.
+Negative controls verify that breaking shape/type/value changes fail the matcher.
+
+The [historical client fixture](../internal/api/testdata/v1-client/README.md)
+contains exact client and domain source from commit `afd343d`, with SHA-256
+digests. It is a development snapshot, not a published release. The test builds
+it in a standalone module using the test runner's Go toolchain, then exercises
+its lifecycle against the current service. It needs no Git history, external
+modules, or running service, and inherits only runtime/cache paths.
+
+The archived source is unchanged after adding `id` to flag responses. Both that
+client and the pre-addition wire fixtures pass; separate tests protect the new
+field's value and read-only behavior. Preserve the baseline when adding features,
+as described in the [v1 policy](api-v1.md#v1-compatibility-policy).
 
 ## Terraform acceptance tests
 
@@ -101,7 +125,7 @@ Verified on macOS arm64 with Go 1.27.1:
 | --- | --- | --- |
 | `internal/flags` | 100.0% | Identifier boundaries, UTF-8 byte limits, omitted fields versus explicit false/empty values |
 | `internal/store` | 87.2% | CRUD, ordering, environment isolation, close/reopen persistence, concurrent writes, cancellation, private files, symlink rejection, newer schema rejection |
-| `internal/api` | 98.7% | HTTP lifecycle, HEAD/204 semantics, strict JSON, body/media limits, Host/origin protection, stable error codes, safe logs, bounded request contexts |
+| `internal/api` | 98.8% | HTTP lifecycle, HEAD/204 semantics, strict JSON, body/media limits, Host/origin protection, stable errors, safe logs, bounded contexts, v1 fixtures, historical-client compatibility, read-only IDs |
 | `internal/client` | 98.5% | Real-service lifecycle, request serialization, invalid input, response validation, safe errors, redirect refusal, timeouts, proxy bypass, TLS trust, response size limits |
 | `internal/cli` | 95.8% | Real-service workflows, JSON/table output, terminal escaping, configuration precedence, invalid commands, output failures, cancellation |
 | `cmd/flagctl` | 100.0% | Actual entry point in child processes: help, success, error exit codes, stdout/stderr separation, SIGINT |
@@ -127,6 +151,11 @@ use a controlled endpoint and inherit only ordinary runtime paths, not developer
 credential/configuration environment variables. During coverage runs, children
 write their coverage data to the parent test's coverage directory, so their
 execution appears in the report without runtime warnings on application stderr.
+
+The historical client is a separate, CGO-disabled executable under `testdata`.
+Its source is excluded from the current application's coverage profile and its
+subprocess is not race-instrumented. The current service and compatibility test
+harness run under the race detector with the command above.
 
 ## What the tests protect
 
@@ -160,6 +189,8 @@ execution appears in the report without runtime warnings on application stderr.
   drop a managed flag, and failed creation does not adopt an existing flag.
 - Terraform updates both mutable fields, replaces changed identities, detects
   drift/deletion, imports complete state, and removes managed flags on destroy.
+- The unchanged historical client still completes its lifecycle after an
+  additive API field, while contract checks reject changes to existing behavior.
 
-Next: version-compatibility fixtures. CI will run these commands once the planned
-GitHub Actions workflows are added.
+Next: secure container access and packaging. CI will run these commands once the
+planned GitHub Actions workflows are added.

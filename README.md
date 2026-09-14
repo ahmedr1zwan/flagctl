@@ -15,7 +15,7 @@ including import and drift reconciliation.
 | Terraform Plugin Framework provider lifecycle, import, and drift | Implemented; local build |
 | Validation, SQLite, REST API, client, and command tests with race checks | Implemented |
 | Provider unit and Terraform acceptance tests with race checks | Implemented |
-| API compatibility fixtures and old-client checks | Next |
+| API compatibility policy, frozen fixtures, and historical-client checks | Implemented |
 | Docker, CI, and published binaries | Planned |
 
 The service is currently for local development. Verification results and
@@ -235,6 +235,11 @@ service in UTC. Omitted descriptions default to an empty string. Repeating a
 create in the same environment returns **409** and leaves the existing record
 unchanged. An environment without any records returns `{"flags":[]}`.
 
+Flag responses also include a read-only `id`, such as `dev/checkout_v2`, matching
+Terraform's import identifier. The field was added with passing checks against
+the original v1 response contract and an archived client. See the
+[compatibility policy](docs/api-v1.md#v1-compatibility-policy).
+
 To verify persistence, stop the server with Ctrl+C, run `./bin/flagd` again from
 the same directory, and repeat the list/get requests. Both environments' flags
 should still exist. To repeat the whole demo with empty storage, use a **new**
@@ -353,6 +358,13 @@ access protections, client failures, CLI workflows/output, process exit codes,
 and service shutdown/restart. Provider unit tests cover configuration, validation,
 import IDs, and state preservation on API failures. Tests use temporary databases
 and local servers; no keys or running service are needed.
+
+The normal suite also replays frozen v1 wire fixtures and builds a historical
+client in a separate module. To run just the compatibility checks:
+
+```sh
+go test ./internal/api -run '^Test(V1|FlagResponseID)' -count=1
+```
 
 With an installed Terraform CLI, run the separate acceptance suite:
 

@@ -66,7 +66,7 @@ Then, updates and deletion:
 - [x] Document local provider installation and add a runnable Terraform example.
 - [x] Verify apply, no-op plan, update, import, CLI-induced drift, and destroy.
 
-## 5. Tests and compatibility — automated suites complete; compatibility checks next
+## 5. Tests and compatibility — complete
 
 - [x] Add validation unit tests and HTTP lifecycle/failure tests.
 - [x] Add SQLite integration tests with temporary databases and close/reopen persistence.
@@ -80,8 +80,8 @@ Then, updates and deletion:
 - [x] Run service tests with race detection and shuffled order; resolve failures.
 - [x] Extend race checks to the client and command suites.
 - [x] Extend race checks to provider suites.
-- [ ] Document the v1 compatibility policy.
-- [ ] Add contract fixtures and verify an older client after an additive API change.
+- [x] Document the v1 compatibility policy.
+- [x] Add contract fixtures and verify an older client after an additive API change.
 
 ## 6. Packaging, automation, and release
 
@@ -297,3 +297,28 @@ Then, updates and deletion:
   acceptance tests. `govulncheck@v1.8.0 -test ./...` reported no vulnerabilities
   after resolving the testing dependency graph. Production source is unchanged;
   dependency versions/checksums are pinned. API compatibility evidence is next.
+- 2026-09-14, step 5d: Added 31 ordered v1 wire fixtures from the contract at
+  f57c5a4 and a standalone historical-client fixture copied byte-for-byte from
+  afd343d. SHA-256 checks protect the archived client/domain source. The driver
+  uses those sources in a separate module, with workspace discovery, saved Go
+  configuration, automatic downloads, proxy access, and CGO disabled for its
+  build. It verifies lifecycle, typed errors, defaults, ordering, dev/prod
+  isolation, partial updates, and timestamp preservation against real storage.
+- 2026-09-14, step 5d: Committed and verified the baseline before adding the
+  read-only API response `id` (`environment/key`). The same frozen fixtures and
+  historical client passed after the addition. Separate tests verify IDs in
+  create/get/update/list responses and reject ID inputs without changing flags.
+  Negative controls confirm the contract matcher rejects missing fields,
+  changed types/defaults/error codes, null/truncated/reordered lists, and invalid
+  timestamps, while allowing additive fields and human-readable message edits.
+- 2026-09-14, step 5d: CGO-disabled builds/tests and vet passed. The full normal
+  suite and the Terraform provider acceptance suite passed with race detection,
+  shuffled order, and fresh coverage. API coverage is 98.8%; provider coverage
+  remains 98.4% including acceptance. The current CLI and Terraform provider
+  continue working after the API change. The compatibility policy and test guide
+  now describe the evidence and frozen-baseline maintenance rules. Docker,
+  secure container access, hosted CI, and published releases remain unfinished.
+- 2026-09-14, step 5d: `govulncheck@v1.8.0 -test ./...` on the application and
+  a separate scan of the historical-client module both reported no vulnerabilities.
+  Module verification, Go formatting, and whitespace checks passed. No application
+  dependencies changed and no real credentials were used for verification.

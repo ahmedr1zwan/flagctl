@@ -15,6 +15,17 @@ type flagHandler struct {
 	store FlagStore
 }
 
+// Keep the API's derived identity in the response, without making it a stored
+// field or an input that clients can override.
+type flagResponse struct {
+	flags.Flag
+	ID string `json:"id"`
+}
+
+func newFlagResponse(flag flags.Flag) flagResponse {
+	return flagResponse{Flag: flag, ID: flag.Environment + "/" + flag.Key}
+}
+
 func (h *flagHandler) collection(w http.ResponseWriter, r *http.Request) {
 	environment := r.PathValue("env")
 	if err := flags.ValidateEnvironment(environment); err != nil {
@@ -28,9 +39,13 @@ func (h *flagHandler) collection(w http.ResponseWriter, r *http.Request) {
 			storageError(w, "list", err)
 			return
 		}
+		response := make([]flagResponse, len(items))
+		for index, flag := range items {
+			response[index] = newFlagResponse(flag)
+		}
 		writeJSON(w, http.StatusOK, struct {
-			Flags []flags.Flag `json:"flags"`
-		}{Flags: items})
+			Flags []flagResponse `json:"flags"`
+		}{Flags: response})
 	case http.MethodPost:
 		h.create(w, r, environment)
 	default:
@@ -52,7 +67,7 @@ func (h *flagHandler) item(w http.ResponseWriter, r *http.Request) {
 			storageError(w, "get", err)
 			return
 		}
-		writeJSON(w, http.StatusOK, flag)
+		writeJSON(w, http.StatusOK, newFlagResponse(flag))
 	case http.MethodPatch:
 		h.update(w, r, environment, key)
 	case http.MethodDelete:
@@ -86,7 +101,7 @@ func (h *flagHandler) create(w http.ResponseWriter, r *http.Request, environment
 		return
 	}
 	w.Header().Set("Location", "/v1/environments/"+flag.Environment+"/flags/"+flag.Key)
-	writeJSON(w, http.StatusCreated, flag)
+	writeJSON(w, http.StatusCreated, newFlagResponse(flag))
 }
 
 func (h *flagHandler) update(w http.ResponseWriter, r *http.Request, environment, key string) {
@@ -107,7 +122,7 @@ func (h *flagHandler) update(w http.ResponseWriter, r *http.Request, environment
 		storageError(w, "update", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, flag)
+	writeJSON(w, http.StatusOK, newFlagResponse(flag))
 }
 
 func requireJSON(w http.ResponseWriter, r *http.Request) bool {

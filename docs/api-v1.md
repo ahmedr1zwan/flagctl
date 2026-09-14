@@ -1,8 +1,8 @@
 # HTTP API contract
 
-Status: health and the complete flag lifecycle are implemented, including PATCH
-and DELETE. This development contract is not yet a released v1 compatibility
-guarantee.
+Status: health and the complete flag lifecycle are implemented. The `/v1` wire
+contract is a checked-in compatibility baseline, verified against fixed fixtures
+and an archived Go client. The project has not published a tagged release yet.
 
 ## Implemented health endpoint
 
@@ -25,6 +25,7 @@ Go's standard HTTP error format instead of the application JSON envelope.
 
 ```json
 {
+  "id": "dev/checkout_v2",
   "key": "checkout_v2",
   "environment": "dev",
   "description": "New checkout",
@@ -35,6 +36,11 @@ Go's standard HTTP error format instead of the application JSON envelope.
 ```
 
 - `(environment, key)` identifies a flag. Both are immutable and case-sensitive.
+- `id` is the derived, read-only `environment/key` identifier, matching Terraform
+  import IDs. It is present in create/get/update responses and each list item.
+  It stays unchanged when enabled state or description changes. Clients cannot
+  supply it in POST or PATCH. It was added after the original v1 baseline;
+  existing clients may continue deriving the identity from environment and key.
 - Each identifier matches `^[a-z0-9][a-z0-9_-]{0,62}$`: 1-63 ASCII characters,
   starting with a lowercase letter or digit. Slashes, spaces, and uppercase
   letters are invalid. Do not silently normalize identifiers.
@@ -90,8 +96,8 @@ there is no blind flip endpoint. Updates to an existing record use last-write-wi
 semantics for supplied fields; concurrent conditional updates are outside v1's
 initial scope. Listing an environment with no records returns an empty list.
 
-An empty PATCH object is invalid. Fields `key`, `environment`, `created_at`, and
-`updated_at` are forbidden in PATCH. Updates read and write in one transaction,
+An empty PATCH object is invalid. Fields `id`, `key`, `environment`, `created_at`,
+and `updated_at` are forbidden in PATCH. Updates read and write in one transaction,
 so concurrent partial updates preserve fields omitted by each request. A missing
 flag returns 404; PATCH never creates a record. DELETE removes only the specified
 environment/key, returns 204 without a body or Content-Type, and returns 404 when
@@ -122,13 +128,62 @@ Clients should branch on status and code, not the human-readable message. Do not
 reflect request bodies, authentication headers, or database error details into
 responses or logs.
 
-## Compatibility and access boundary
+## v1 compatibility policy
 
-After the v1 contract is released, preserve existing field meanings, types,
-status codes, defaults, and error codes. Do not add required inputs to existing
-operations. Additive response fields must not break older clients. Breaking
-changes require a new major API version. Contract and old-client checks will be
-added in the dedicated testing stage before claiming backward compatibility.
+Preserve the following for existing v1 operations and valid requests:
+
+- Routes, methods, required inputs, success status codes, and Location/Allow
+  semantics. HEAD and DELETE 204 retain their body-free responses.
+- Existing response fields, JSON types, meanings, and presence, including
+  explicit false/empty values. An empty list stays an array, and lists stay
+  sorted by key within their environment.
+- Identifier rules, environment isolation, creation defaults, immutable identity,
+  partial-update semantics, creation timestamps, and no-op update timestamps.
+- Documented error status/code pairs for the corresponding failure conditions.
+  Human-readable message text, JSON key order, and insignificant whitespace may
+  change. Error messages still omit sensitive inputs and implementation details.
+
+New response object fields, optional request inputs, headers, and new operations
+may be added when existing requests keep their behavior. Clients must tolerate
+unknown response fields and use HTTP status plus `error.code` for error handling.
+The server continues rejecting unknown request fields; adding a specifically
+defined optional input does not require accepting arbitrary fields. Changes to
+validation limits need client checks too, because old clients validate responses.
+
+Removing or renaming a field, changing its type/default/meaning, adding required
+inputs, changing existing status/error codes, or changing list envelopes/order
+requires a new major API path such as `/v2`. Keep the v1 handlers and compatibility
+suite when introducing that version. Removing v1 requires a separately announced
+breaking release with a migration guide.
+
+Compatibility covers the API contract for requests permitted by the configured
+access controls. Authentication, authorization, and transport requirements are
+deployment concerns and must be documented when introduced. Payload compatibility
+does not grant anonymous or remote access.
+
+### Verified additive change
+
+The read-only `id` response field is the first recorded additive change. The
+pre-addition [wire fixtures](../internal/api/testdata/v1/README.md) still pass, as
+does the [archived client](../internal/api/testdata/v1-client/README.md) from commit
+`afd343d`, without edits to its client or domain source. That client completes
+create/list/get/update/delete, parses typed errors, and verifies defaults,
+environment isolation, partial updates, and timestamp semantics against the
+current SQLite-backed service. Separate tests assert the new ID field's value
+and reject attempts to write it.
+
+Run the compatibility checkpoint with:
+
+```sh
+go test ./internal/api -run '^Test(V1|FlagResponseID)' -count=1
+```
+
+These checks run in the normal Go suite as well. Preserve the frozen fixtures
+and source snapshot when changing v1; add expectations for new features rather
+than regenerating the baseline. The [test guide](testing.md) describes test
+isolation, negative controls, coverage, and the historical-client build.
+
+## Access boundary
 
 The server accepts only literal loopback listen addresses. Host must match the
 actual bound IP and port, or `localhost` on the same port (port 80 may be omitted).
