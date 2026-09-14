@@ -1,8 +1,9 @@
 # flagctl implementation plan
 
-Status: steps 1–4 (the service, Cobra CLI, and Terraform provider) are complete
-and verified locally. Step 5, automated test suites and compatibility evidence,
-is next. Provider Registry publication is not part of the completed checkpoint.
+Status: steps 1–4 (the service, Cobra CLI, and Terraform provider) and step 5a
+(automated validation, storage, and REST API tests) are complete and verified
+locally. Client/command tests are next, followed by provider acceptance tests and
+API compatibility evidence. Provider Registry publication remains separate.
 
 ## Goal
 
@@ -119,7 +120,8 @@ Completed checkpoint 2b: transactional partial updates, explicit enable/disable,
 description clearing, no-op timestamp preservation, deletion, and missing-record
 handling. Creation/read regression checks and update/delete concurrency,
 persistence, validation, and security checks passed. The dedicated Go test suite
-is still deferred. The shared client and Cobra CLI were added in step 3.
+was deferred at this checkpoint and added for the service in step 5a. The shared
+client and Cobra CLI were added in step 3.
 
 Checkpoint: use curl to create, list, read, enable, disable, and delete flags.
 Verify the same key is isolated between `dev` and `prod`, duplicate creation
@@ -218,6 +220,15 @@ not sufficient evidence for the resume's backward-compatibility claim.
 Checkpoint: reproducible unit/integration and acceptance test commands pass,
 including the documented compatibility scenario.
 
+Completed checkpoint 5a: committed validation unit tests, SQLite integration
+tests, and HTTP integration/failure tests. Coverage includes defaults, partial
+updates, persistence after reopening, concurrency, invalid/canceled operations,
+file protections, strict payload decoding, Host/origin checks, and safe errors.
+The suite passes with CGO disabled and with race detection and shuffled test
+order. Commands and per-package coverage are in [docs/testing.md](docs/testing.md).
+Next add client/command tests, then provider unit/acceptance tests, then explicit
+compatibility checks. The overall testing stage is not yet complete.
+
 ### 6. Docker, CI, releases, and final documentation
 
 Add a multi-stage Dockerfile and Compose setup with a persistent database volume.
@@ -243,8 +254,9 @@ restarts, hosted CI is green, and an actual GitHub release contains usable binar
 
 Use one small increment at a time. Explain the design choices and the resulting
 behavior, manually check each new core flow, and update TODO.md with evidence.
-The dedicated automated test suite comes later, as requested; basic build and
-smoke checks still accompany the early work.
+The early increments used build and smoke checks, as requested. From step 5a,
+add committed tests in focused increments and run the relevant existing suites
+when behavior changes.
 
 Keep changes suitable for descriptive commits such as `add service skeleton`,
 `persist environment-scoped flags`, `add Cobra create and list commands`, and

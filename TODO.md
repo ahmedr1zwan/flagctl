@@ -66,13 +66,18 @@ Then, updates and deletion:
 - [x] Document local provider installation and add a runnable Terraform example.
 - [x] Verify apply, no-op plan, update, import, CLI-induced drift, and destroy.
 
-## 5. Tests and compatibility — next
+## 5. Tests and compatibility — service tests complete; client/command tests next
 
-- [ ] Add unit tests for validation, HTTP handlers, client errors, and CLI behavior.
-- [ ] Add SQLite integration tests with temporary databases and restart coverage.
+- [x] Add validation unit tests and HTTP lifecycle/failure tests.
+- [x] Add SQLite integration tests with temporary databases and close/reopen persistence.
+- [x] Cover concurrent writes, invalid/canceled operations, and private-file protections.
+- [ ] Add tests for HTTP client errors and command behavior.
+- [ ] Add provider unit tests for configuration, schema, import, and state handling.
 - [ ] Add isolated provider acceptance tests for lifecycle, import, drift, and cleanup.
-- [ ] Document and exercise separate unit/integration and acceptance test commands.
-- [ ] Run appropriate race checks and resolve failures.
+- [x] Document and exercise the current unit/integration test commands.
+- [ ] Document and exercise separate provider acceptance-test commands.
+- [x] Run service tests with race detection and shuffled order; resolve failures.
+- [ ] Extend race checks as client/command/provider suites are added.
 - [ ] Document the v1 compatibility policy.
 - [ ] Add contract fixtures and verify an older client after an additive API change.
 
@@ -220,3 +225,21 @@ Then, updates and deletion:
   regression checks passed as well. All verification servers stopped and
   temporary state/databases were removed. These remain one-off checks; committed
   automated Go and provider acceptance suites are the next increment.
+- 2026-09-13, step 5a: Added committed Go tests for validation, SQLite, and the
+  REST API using only existing dependencies and standard testing tools. Checks
+  cover byte/name boundaries, defaults, explicit false/empty values, CRUD,
+  ordering, environment isolation, no-op timestamps, persistence after reopening,
+  canceled/invalid operations, and concurrent create/update/delete behavior.
+- 2026-09-13, step 5a: Added private-file, symlink/sidecar, URI-path, and newer-schema
+  checks, plus real HTTP tests for HEAD/204, strict JSON, media types, known-length
+  and chunked body limits, Host/origin protections, error codes, safe logs, and
+  bounded contexts. Corrected a test fixture to create a private child directory:
+  Go's temporary test directory itself was correctly rejected by store.Open.
+- 2026-09-13, step 5a: `CGO_ENABLED=0 go test ./...` and `go vet ./...` passed.
+  The service suite also passed with `CGO_ENABLED=1 go test -race -shuffle=on
+  -count=1 -coverprofile=.cache/service-coverage.out ./internal/flags
+  ./internal/store ./internal/api`. Statement coverage: flags 100.0%, store 87.2%,
+  API 98.7%. No races were reported. Formatting/whitespace checks passed; test
+  databases and HTTP servers were cleaned up. Client/CLI, provider acceptance,
+  and explicit compatibility suites remain unfinished and are not included in
+  these coverage figures.

@@ -201,8 +201,9 @@ concurrent CLI mutations while applying Terraform changes; updates to the same
 field use the service's last-write-wins behavior.
 
 The verified checks for this checkpoint used a real local Terraform CLI and
-temporary service/database/state directories. Dedicated Go unit and Terraform
-acceptance suites are the next stage. Registry publication, data sources, and
+temporary service/database/state directories. Service unit/integration tests
+are now committed; provider unit and Terraform acceptance suites are still
+upcoming. See the [test guide](testing.md). Registry publication, data sources, and
 remote service access are not included in this increment.
 
 Implementation references: HashiCorp's [provider configuration](https://developer.hashicorp.com/terraform/plugin/framework/providers),
