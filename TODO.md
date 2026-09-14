@@ -66,20 +66,20 @@ Then, updates and deletion:
 - [x] Document local provider installation and add a runnable Terraform example.
 - [x] Verify apply, no-op plan, update, import, CLI-induced drift, and destroy.
 
-## 5. Tests and compatibility — service/client/command tests complete; provider tests next
+## 5. Tests and compatibility — automated suites complete; compatibility checks next
 
 - [x] Add validation unit tests and HTTP lifecycle/failure tests.
 - [x] Add SQLite integration tests with temporary databases and close/reopen persistence.
 - [x] Cover concurrent writes, invalid/canceled operations, and private-file protections.
 - [x] Add tests for HTTP client errors and command behavior.
 - [x] Verify CLI process output, exit codes, and interruption; service shutdown/restart.
-- [ ] Add provider unit tests for configuration, schema, import, and state handling.
-- [ ] Add isolated provider acceptance tests for lifecycle, import, drift, and cleanup.
+- [x] Add provider unit tests for configuration, schema, import, and state handling.
+- [x] Add isolated provider acceptance tests for lifecycle, import, drift, and cleanup.
 - [x] Document and exercise the current unit/integration test commands.
-- [ ] Document and exercise separate provider acceptance-test commands.
+- [x] Document and exercise separate provider acceptance-test commands.
 - [x] Run service tests with race detection and shuffled order; resolve failures.
 - [x] Extend race checks to the client and command suites.
-- [ ] Extend race checks to provider suites.
+- [x] Extend race checks to provider suites.
 - [ ] Document the v1 compatibility policy.
 - [ ] Add contract fixtures and verify an older client after an additive API change.
 
@@ -272,3 +272,28 @@ Then, updates and deletion:
   Tests use isolated databases/servers and controlled subprocess environments;
   no real credentials or user data were used. Production code and dependencies
   are unchanged. Provider unit/acceptance and API compatibility tests are next.
+- 2026-09-14, step 5c: Added provider unit tests for protocol schema validation,
+  default/explicit/environment configuration, unknown values, timeout application,
+  schema validators, import IDs, and unconfigured resource errors. Failed API
+  operations preserve prior state; failed creation does not adopt a resource.
+  Only the expected typed not-found error removes state or permits missing-flag
+  deletion. Synthetic sensitive values stay out of provider diagnostics.
+- 2026-09-14, step 5c: Added terraform-plugin-testing v1.16.0 acceptance tests
+  using protocol 6 and the installed Terraform 1.16.1 on macOS arm64. Every case
+  starts an isolated SQLite-backed HTTP service, uses temporary Terraform
+  configuration/state, and ignores developer Terraform environment overrides.
+  No Registry publication, prebuilt provider, running service, or keys are needed.
+- 2026-09-14, step 5c: Acceptance checks passed for defaults, dev/prod isolation,
+  no-op plans, updates, false/empty values, timestamps, import/state equivalence,
+  external drift, recreation after external deletion, key/environment replacement,
+  invalid inputs/imports, and deletion between plan and apply. State checks compare
+  Terraform attributes to fresh API reads. Destroy checks confirm managed flags
+  are absent before database cleanup; duplicate creation leaves unmanaged flags
+  untouched through Terraform's error cleanup.
+- 2026-09-14, step 5c: CGO-disabled builds/tests, vet, module verification, formatting,
+  and whitespace checks passed. The full normal suite and the provider suite
+  with `TF_ACC=1` passed with race detection, shuffled order, and fresh coverage.
+  Provider statement coverage is 85.5% for unit tests and 98.4% including
+  acceptance tests. `govulncheck@v1.8.0 -test ./...` reported no vulnerabilities
+  after resolving the testing dependency graph. Production source is unchanged;
+  dependency versions/checksums are pinned. API compatibility evidence is next.

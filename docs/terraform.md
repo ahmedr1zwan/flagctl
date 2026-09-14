@@ -200,11 +200,18 @@ committed but Terraform could not save state, import the existing flag. Avoid
 concurrent CLI mutations while applying Terraform changes; updates to the same
 field use the service's last-write-wins behavior.
 
-The verified checks for this checkpoint used a real local Terraform CLI and
-temporary service/database/state directories. Service, client, and command tests
-are now committed; provider unit and Terraform acceptance suites are still
-upcoming. See the [test guide](testing.md). Registry publication, data sources, and
-remote service access are not included in this increment.
+Provider unit and acceptance tests are committed. The acceptance suite uses a
+real local Terraform CLI and temporary service/database/state directories to
+verify lifecycle, import, drift, replacement, error handling, and cleanup:
+
+```sh
+TF_ACC=1 go test ./internal/provider -run '^TestAcc' -count=1 -timeout=10m
+```
+
+No running service, development override, or prebuilt provider is required for
+these tests. See the [test guide](testing.md) for isolation details and race checks.
+Registry publication, data sources, and remote service access remain outside
+the current scope.
 
 Implementation references: HashiCorp's [provider configuration](https://developer.hashicorp.com/terraform/plugin/framework/providers),
 [plan modifiers](https://developer.hashicorp.com/terraform/plugin/framework/resources/plan-modification),

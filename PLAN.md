@@ -1,10 +1,9 @@
 # flagctl implementation plan
 
 Status: steps 1–4 (the service, Cobra CLI, and Terraform provider), step 5a
-(validation, storage, and REST API tests), and step 5b (client and command tests)
-are complete and verified locally. Provider unit/acceptance tests are next,
-followed by API compatibility evidence. Provider Registry publication remains
-separate.
+(validation, storage, and REST API tests), step 5b (client and command tests),
+and step 5c (provider unit/acceptance tests) are complete and verified locally.
+API compatibility evidence is next. Provider Registry publication remains separate.
 
 ## Goal
 
@@ -237,8 +236,21 @@ and invalid inputs making no requests. The full suite passes with CGO disabled
 and with race detection, shuffled order, and coverage. Child CLI execution is
 included in the entry-point coverage report.
 
-Next add provider unit/acceptance tests, then explicit compatibility checks.
-The overall testing stage is not yet complete.
+Completed checkpoint 5c: provider unit tests verify protocol schema, configuration
+precedence, timeouts, unknown values, validation, import identity, safe diagnostics,
+and state preservation after API errors. Acceptance tests use pinned
+terraform-plugin-testing v1.16.0 with protocol 6 and a real Terraform CLI against
+isolated SQLite/HTTP service fixtures. Verified defaults, no-op plans, updates
+and clearing, timestamp preservation, import, drift, external deletion,
+identity replacement, duplicate-create protection, invalid configuration/imports,
+and deletion between plan and apply. Destroy checks inspect the API before
+temporary storage is removed. Normal and acceptance suites pass with race
+detection and shuffled order; provider coverage is 85.5% without acceptance and
+98.4% with acceptance. The dependency scan including test code found no known
+vulnerabilities.
+
+Next add explicit compatibility checks. The overall testing stage is not yet
+complete.
 
 ### 6. Docker, CI, releases, and final documentation
 

@@ -1,10 +1,10 @@
 # Tests
 
 The committed Go suite covers domain validation, SQLite integration, the REST
-API, the shared HTTP client, Cobra commands, and the service/CLI entry points.
-It uses standard Go testing tools without additional test dependencies.
-Provider unit/acceptance tests and explicit API compatibility checks are
-upcoming increments.
+API, the shared HTTP client, Cobra commands, the service/CLI entry points, and
+the Terraform provider. The provider acceptance suite uses pinned
+`terraform-plugin-testing` v1.16.0 and runs separately from ordinary Go tests.
+Explicit API compatibility checks are the next increment.
 
 ## Run the current suite
 
@@ -31,12 +31,53 @@ go test ./internal/store ./internal/api
 
 # Client/CLI behavior, process exit codes, interruption, and service restart.
 go test ./internal/client ./internal/cli ./cmd/flagctl ./cmd/flagd
+
+# Provider configuration, schema validation, import IDs, and state errors.
+go test ./internal/provider -run '^Test(Provider|Resource|Schema)'
 ```
 
-`[no test files]` for `internal/provider` and `cmd/terraform-provider-flagctl`
-is expected at this checkpoint. Those packages are compiled but do not yet
-have committed tests. Previously recorded one-off Terraform smoke checks are
-not counted as automated test coverage.
+`cmd/terraform-provider-flagctl` still reports `[no test files]`. Acceptance
+tests serve the provider in the Go test process using its production protocol
+version; they do not exercise the standalone provider executable's startup.
+The earlier one-off binary smoke checks are separate from this coverage.
+
+## Terraform acceptance tests
+
+Install Terraform, then run:
+
+```sh
+TF_ACC=1 go test ./internal/provider -run '^TestAcc' -count=1 -timeout=10m
+```
+
+The suite was verified with Terraform 1.16.1 on macOS arm64. The executable is
+selected from `TF_ACC_TERRAFORM_PATH`, or from `terraform` on `PATH`. The tests
+fail with an installation message if it is unavailable; they do not download a
+Terraform binary automatically. For an explicit executable:
+
+```sh
+TF_ACC=1 TF_ACC_TERRAFORM_PATH=/absolute/path/to/terraform \
+  go test ./internal/provider -run '^TestAcc' -count=1 -timeout=10m
+```
+
+The suite uses HashiCorp's [Framework acceptance testing integration](https://developer.hashicorp.com/terraform/plugin/framework/acctests)
+to run Terraform with a protocol 6 provider server built from the current code.
+No prebuilt provider, development override, Registry publication, API keys, or
+running service is needed. Each case owns a temporary SQLite database, loopback
+HTTP server, Terraform working directory, and CLI configuration file.
+
+Cases run sequentially because the testing library uses process-wide Terraform
+environment settings. The fixture temporarily clears inherited `TF_*` options,
+including CLI arguments, token variables, debug logging, and working-directory
+persistence. It then sets the test configuration and executable explicitly and
+restores the original values on cleanup. Global configuration files are not
+modified. An existing `FLAGCTL_SERVER` cannot direct tests at your own service.
+
+Tests check plans and compare state attributes with fresh API reads. The suite
+covers default values, no-op plans, mutable fields, timestamps, import, drift,
+external deletion, replacement, validation failures, and deletion between plan
+and apply. Destroy checks inspect the API before temporary storage is removed.
+The duplicate-create case instead verifies its unmanaged flag survives both
+the failed apply and Terraform's cleanup.
 
 ## Race detection and coverage
 
@@ -65,11 +106,21 @@ Verified on macOS arm64 with Go 1.27.1:
 | `internal/cli` | 95.8% | Real-service workflows, JSON/table output, terminal escaping, configuration precedence, invalid commands, output failures, cancellation |
 | `cmd/flagctl` | 100.0% | Actual entry point in child processes: help, success, error exit codes, stdout/stderr separation, SIGINT |
 | `cmd/flagd` | 82.1% | Listen-address restrictions, startup failures, health, graceful shutdown, restart persistence |
+| `internal/provider` | 85.5% | Protocol schema, configuration precedence, unknown values, timeouts, validators, import identity, safe errors and prior-state preservation |
 
-These are per-package statement coverage figures for this checkpoint. Provider
-packages still report 0% under coverage. These figures do not prove API backward
-compatibility or replace a security review. Unix permission/symlink checks and
-the subprocess interrupt test are skipped on Windows.
+For provider unit and acceptance coverage together, run:
+
+```sh
+CGO_ENABLED=1 TF_ACC=1 go test -race -shuffle=on -count=1 \
+  -coverprofile=.cache/provider-coverage.out ./internal/provider -timeout=10m
+go tool cover -func=.cache/provider-coverage.out
+```
+
+This command verified **98.4%** statement coverage for `internal/provider` with
+no races reported. The table above uses the ordinary suite with acceptance
+disabled. The standalone provider entry point still reports 0%. Coverage does
+not prove API backward compatibility or replace a security review. Unix
+permission/symlink checks and the subprocess interrupt test are skipped on Windows.
 
 CLI process tests invoke the real entry point in a child test executable. They
 use a controlled endpoint and inherit only ordinary runtime paths, not developer
@@ -105,7 +156,10 @@ execution appears in the report without runtime warnings on application stderr.
   after a successful mutation, the error explains that the change committed.
 - Service shutdown closes the listener, restart retains flags, and startup
   errors do not silently leave a running service.
+- Provider API errors preserve prior state. An unknown 404 error cannot silently
+  drop a managed flag, and failed creation does not adopt an existing flag.
+- Terraform updates both mutable fields, replaces changed identities, detects
+  drift/deletion, imports complete state, and removes managed flags on destroy.
 
-Next: provider unit tests, an isolated Terraform acceptance suite, and
-version-compatibility fixtures. CI will run these commands once the
-planned GitHub Actions workflows are added.
+Next: version-compatibility fixtures. CI will run these commands once the planned
+GitHub Actions workflows are added.
