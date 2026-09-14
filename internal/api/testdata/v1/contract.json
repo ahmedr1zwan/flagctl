@@ -1,0 +1,575 @@
+{
+  "baseline_commit": "f57c5a4b869909f6d4cbbb607162ccd420d0655b",
+  "cases": [
+    {
+      "name": "health",
+      "method": "GET",
+      "path": "/healthz",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "status": "ok"
+      }
+    },
+    {
+      "name": "health head",
+      "method": "HEAD",
+      "path": "/healthz",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": null
+    },
+    {
+      "name": "empty environment",
+      "method": "GET",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "flags": []
+      }
+    },
+    {
+      "name": "minimal create defaults",
+      "method": "POST",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "{\"key\":\"z\"}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 201,
+      "response_headers": {
+        "Content-Type": "application/json",
+        "Location": "/v1/environments/dev/flags/z"
+      },
+      "response": {
+        "key": "z",
+        "environment": "dev",
+        "description": "",
+        "enabled": false,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "explicit create",
+      "method": "POST",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "{\"key\":\"a\",\"description\":\"alpha\",\"enabled\":true}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 201,
+      "response_headers": {
+        "Content-Type": "application/json",
+        "Location": "/v1/environments/dev/flags/a"
+      },
+      "response": {
+        "key": "a",
+        "environment": "dev",
+        "description": "alpha",
+        "enabled": true,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "same key in prod",
+      "method": "POST",
+      "path": "/v1/environments/prod/flags",
+      "request_body": "{\"key\":\"z\",\"description\":\"production\",\"enabled\":true}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 201,
+      "response_headers": {
+        "Content-Type": "application/json",
+        "Location": "/v1/environments/prod/flags/z"
+      },
+      "response": {
+        "key": "z",
+        "environment": "prod",
+        "description": "production",
+        "enabled": true,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "read defaults",
+      "method": "GET",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "key": "z",
+        "environment": "dev",
+        "description": "",
+        "enabled": false,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "ordered list",
+      "method": "GET",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "flags": [
+          {
+            "key": "a",
+            "environment": "dev",
+            "description": "alpha",
+            "enabled": true,
+            "created_at": "<utc-timestamp>",
+            "updated_at": "<utc-timestamp>"
+          },
+          {
+            "key": "z",
+            "environment": "dev",
+            "description": "",
+            "enabled": false,
+            "created_at": "<utc-timestamp>",
+            "updated_at": "<utc-timestamp>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "enable with description omitted",
+      "method": "PATCH",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "{\"enabled\":true}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "key": "z",
+        "environment": "dev",
+        "description": "",
+        "enabled": true,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "describe with enabled omitted",
+      "method": "PATCH",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "{\"description\":\"new\"}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "key": "z",
+        "environment": "dev",
+        "description": "new",
+        "enabled": true,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "explicit false preserves description",
+      "method": "PATCH",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "{\"enabled\":false}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "key": "z",
+        "environment": "dev",
+        "description": "new",
+        "enabled": false,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "explicit empty clears description",
+      "method": "PATCH",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "{\"description\":\"\"}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "key": "z",
+        "environment": "dev",
+        "description": "",
+        "enabled": false,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "repeated state update",
+      "method": "PATCH",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "{\"enabled\":false}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "key": "z",
+        "environment": "dev",
+        "description": "",
+        "enabled": false,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "prod remains isolated",
+      "method": "GET",
+      "path": "/v1/environments/prod/flags/z",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "key": "z",
+        "environment": "prod",
+        "description": "production",
+        "enabled": true,
+        "created_at": "<utc-timestamp>",
+        "updated_at": "<utc-timestamp>"
+      }
+    },
+    {
+      "name": "collection head",
+      "method": "HEAD",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": null
+    },
+    {
+      "name": "item head",
+      "method": "HEAD",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": null
+    },
+    {
+      "name": "duplicate create",
+      "method": "POST",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "{\"key\":\"a\"}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 409,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "error": {
+          "code": "already_exists",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "empty patch",
+      "method": "PATCH",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "{}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 400,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "error": {
+          "code": "invalid_request",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "invalid identifier",
+      "method": "GET",
+      "path": "/v1/environments/Dev/flags",
+      "request_body": "",
+      "request_headers": {},
+      "status": 400,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "error": {
+          "code": "invalid_request",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "unsupported media type",
+      "method": "POST",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "{\"key\":\"media\"}",
+      "request_headers": {
+        "Content-Type": "text/plain"
+      },
+      "status": 415,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "error": {
+          "code": "unsupported_media_type",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "foreign host",
+      "method": "POST",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "{\"key\":\"blocked\"}",
+      "request_headers": {
+        "Content-Type": "application/json",
+        "Host": "example.invalid"
+      },
+      "status": 403,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "error": {
+          "code": "forbidden",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "health methods",
+      "method": "POST",
+      "path": "/healthz",
+      "request_body": "",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 405,
+      "response_headers": {
+        "Content-Type": "application/json",
+        "Allow": "GET, HEAD"
+      },
+      "response": {
+        "error": {
+          "code": "method_not_allowed",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "collection methods",
+      "method": "PUT",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "",
+      "request_headers": {},
+      "status": 405,
+      "response_headers": {
+        "Content-Type": "application/json",
+        "Allow": "GET, HEAD, POST"
+      },
+      "response": {
+        "error": {
+          "code": "method_not_allowed",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "item methods",
+      "method": "POST",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 405,
+      "response_headers": {
+        "Content-Type": "application/json",
+        "Allow": "GET, HEAD, PATCH, DELETE"
+      },
+      "response": {
+        "error": {
+          "code": "method_not_allowed",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "delete",
+      "method": "DELETE",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "",
+      "request_headers": {},
+      "status": 204,
+      "response_headers": {
+        "Content-Type": ""
+      },
+      "response": null
+    },
+    {
+      "name": "missing read",
+      "method": "GET",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "",
+      "request_headers": {},
+      "status": 404,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "error": {
+          "code": "not_found",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "missing update",
+      "method": "PATCH",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "{\"enabled\":true}",
+      "request_headers": {
+        "Content-Type": "application/json"
+      },
+      "status": 404,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "error": {
+          "code": "not_found",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "repeated delete",
+      "method": "DELETE",
+      "path": "/v1/environments/dev/flags/z",
+      "request_body": "",
+      "request_headers": {},
+      "status": 404,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "error": {
+          "code": "not_found",
+          "message": "<message>"
+        }
+      }
+    },
+    {
+      "name": "list after deletion",
+      "method": "GET",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "flags": [
+          {
+            "key": "a",
+            "environment": "dev",
+            "description": "alpha",
+            "enabled": true,
+            "created_at": "<utc-timestamp>",
+            "updated_at": "<utc-timestamp>"
+          }
+        ]
+      }
+    },
+    {
+      "name": "delete remaining flag",
+      "method": "DELETE",
+      "path": "/v1/environments/dev/flags/a",
+      "request_body": "",
+      "request_headers": {},
+      "status": 204,
+      "response_headers": {
+        "Content-Type": ""
+      },
+      "response": null
+    },
+    {
+      "name": "list becomes empty array",
+      "method": "GET",
+      "path": "/v1/environments/dev/flags",
+      "request_body": "",
+      "request_headers": {},
+      "status": 200,
+      "response_headers": {
+        "Content-Type": "application/json"
+      },
+      "response": {
+        "flags": []
+      }
+    }
+  ]
+}

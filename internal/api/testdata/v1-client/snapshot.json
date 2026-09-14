@@ -1,0 +1,7 @@
+{
+  "commit": "afd343df4121e52e8096e05414b71e7373e7e69f",
+  "sha256": {
+    "internal/client/client.go": "3d405491b69dcef4c045f2f994d15f1d326ce7205573b252c03b21be6b784db4",
+    "internal/flags/flag.go": "a94ef9f754993876e99f046e2f5d050b188c1d135fe257d98f41d62c131b51ce"
+  }
+}
