@@ -66,18 +66,20 @@ Then, updates and deletion:
 - [x] Document local provider installation and add a runnable Terraform example.
 - [x] Verify apply, no-op plan, update, import, CLI-induced drift, and destroy.
 
-## 5. Tests and compatibility — service tests complete; client/command tests next
+## 5. Tests and compatibility — service/client/command tests complete; provider tests next
 
 - [x] Add validation unit tests and HTTP lifecycle/failure tests.
 - [x] Add SQLite integration tests with temporary databases and close/reopen persistence.
 - [x] Cover concurrent writes, invalid/canceled operations, and private-file protections.
-- [ ] Add tests for HTTP client errors and command behavior.
+- [x] Add tests for HTTP client errors and command behavior.
+- [x] Verify CLI process output, exit codes, and interruption; service shutdown/restart.
 - [ ] Add provider unit tests for configuration, schema, import, and state handling.
 - [ ] Add isolated provider acceptance tests for lifecycle, import, drift, and cleanup.
 - [x] Document and exercise the current unit/integration test commands.
 - [ ] Document and exercise separate provider acceptance-test commands.
 - [x] Run service tests with race detection and shuffled order; resolve failures.
-- [ ] Extend race checks as client/command/provider suites are added.
+- [x] Extend race checks to the client and command suites.
+- [ ] Extend race checks to provider suites.
 - [ ] Document the v1 compatibility policy.
 - [ ] Add contract fixtures and verify an older client after an additive API change.
 
@@ -243,3 +245,30 @@ Then, updates and deletion:
   databases and HTTP servers were cleaned up. Client/CLI, provider acceptance,
   and explicit compatibility suites remain unfinished and are not included in
   these coverage figures.
+- 2026-09-13, step 5b: Added automated shared-client tests for the real-service
+  lifecycle, exact HTTP methods/paths/payloads, explicit false/empty updates,
+  invalid inputs making no requests, and typed/sanitized API errors. Response
+  tests cover missing/invalid fields, wrong identities/update values, malformed
+  or oversized JSON, body/header limits, and tolerance of additive fields.
+- 2026-09-13, step 5b: Client transport checks verify redirect refusal, no
+  application-level retries after HTTP failures, proxy bypass, rejection of an
+  untrusted TLS certificate, and timeout/cancellation before headers and during
+  body reads. Synthetic sensitive values stay out of returned errors.
+- 2026-09-13, step 5b: Added real-service CLI lifecycle checks for dev/prod,
+  JSON/table output, no-op toggles, duplicates/missing flags, terminal-control
+  escaping, help, configuration precedence, and invalid commands. Output-write
+  failures acknowledge completed mutations; subprocess tests verify actual
+  stdout/stderr, exit codes, and SIGINT cancellation. Service entry-point checks
+  verify loopback restrictions, startup failures, health, graceful shutdown,
+  listener closure, and persistence after restart.
+- 2026-09-13, step 5b: `CGO_ENABLED=0 go test ./...`, `go vet ./...`, formatting,
+  and whitespace checks passed. The full suite passed with `CGO_ENABLED=1 go
+  test -race -shuffle=on -count=1 -coverprofile=.cache/application-coverage.out
+  ./...`; no races were reported. Coverage: client 98.5%, CLI 95.8%, flagctl
+  entry point 100.0%, flagd entry point 82.1%; existing flags/store/API coverage
+  remains 100.0%/87.2%/98.7%. Provider packages still have no automated tests.
+  Fixed the test harness to collect child-process coverage in the parent report
+  and prevent Go coverage warnings from contaminating CLI stderr assertions.
+  Tests use isolated databases/servers and controlled subprocess environments;
+  no real credentials or user data were used. Production code and dependencies
+  are unchanged. Provider unit/acceptance and API compatibility tests are next.

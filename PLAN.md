@@ -1,9 +1,10 @@
 # flagctl implementation plan
 
-Status: steps 1–4 (the service, Cobra CLI, and Terraform provider) and step 5a
-(automated validation, storage, and REST API tests) are complete and verified
-locally. Client/command tests are next, followed by provider acceptance tests and
-API compatibility evidence. Provider Registry publication remains separate.
+Status: steps 1–4 (the service, Cobra CLI, and Terraform provider), step 5a
+(validation, storage, and REST API tests), and step 5b (client and command tests)
+are complete and verified locally. Provider unit/acceptance tests are next,
+followed by API compatibility evidence. Provider Registry publication remains
+separate.
 
 ## Goal
 
@@ -226,8 +227,18 @@ updates, persistence after reopening, concurrency, invalid/canceled operations,
 file protections, strict payload decoding, Host/origin checks, and safe errors.
 The suite passes with CGO disabled and with race detection and shuffled test
 order. Commands and per-package coverage are in [docs/testing.md](docs/testing.md).
-Next add client/command tests, then provider unit/acceptance tests, then explicit
-compatibility checks. The overall testing stage is not yet complete.
+
+Completed checkpoint 5b: client request/response and transport tests, real-service
+CLI workflows, JSON/table output and output-write failures, configuration
+precedence, subprocess exit codes and interruption, and service startup,
+shutdown, and restart persistence. Tests exercise sanitized errors, redirect
+refusal, proxy bypass, normal TLS certificate verification, timeout/cancellation,
+and invalid inputs making no requests. The full suite passes with CGO disabled
+and with race detection, shuffled order, and coverage. Child CLI execution is
+included in the entry-point coverage report.
+
+Next add provider unit/acceptance tests, then explicit compatibility checks.
+The overall testing stage is not yet complete.
 
 ### 6. Docker, CI, releases, and final documentation
 

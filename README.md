@@ -13,8 +13,8 @@ including import and drift reconciliation.
 | Environment isolation, input validation, and local access protections | Implemented |
 | Cobra CLI lifecycle with JSON/table output | Implemented |
 | Terraform Plugin Framework provider lifecycle, import, and drift | Implemented; local build |
-| Validation, SQLite, and REST API tests with race checks | Implemented |
-| Client/CLI tests, Terraform acceptance tests, and API compatibility checks | Next |
+| Validation, SQLite, REST API, client, and command tests with race checks | Implemented |
+| Provider unit/acceptance tests and API compatibility checks | Next |
 | Docker, CI, and published binaries | Planned |
 
 The service is currently for local development. Verification results and
@@ -340,16 +340,17 @@ gofmt -l cmd internal
 ```
 
 Build, vet, and formatting checks print nothing when successful; module
-verification prints `all modules verified`. Run the committed service tests with:
+verification prints `all modules verified`. Run the committed tests with:
 
 ```sh
 go test ./...
-CGO_ENABLED=1 go test -race -shuffle=on ./internal/flags ./internal/store ./internal/api
+CGO_ENABLED=1 go test -race -shuffle=on ./...
 ```
 
-The suite covers validation, SQLite persistence/concurrency, and HTTP behavior
-and access protections. It uses temporary databases and local test servers;
-no keys or running service are needed. Client/CLI and Terraform acceptance
+The suite covers validation, SQLite persistence/concurrency, HTTP behavior and
+access protections, client failures, CLI workflows/output, process exit codes,
+and service shutdown/restart. It uses temporary databases and local test servers;
+no keys or running service are needed. Provider unit and Terraform acceptance
 tests remain upcoming increments. See the [test guide](docs/testing.md) for
 requirements, coverage, and commands, and [TODO.md](TODO.md#verification-log)
 for recorded results.
