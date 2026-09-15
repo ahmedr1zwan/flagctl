@@ -87,8 +87,8 @@ Then, updates and deletion:
 
 - [x] Implement and verify authentication, credential handling, and transport
   protection before enabling any non-loopback/container-interface listener.
-- [ ] Add a multi-stage Dockerfile and Compose with persistent storage.
-- [ ] Verify the container quickstart and persistence after restart.
+- [x] Add a multi-stage Dockerfile and Compose with persistent storage.
+- [x] Verify the container quickstart and persistence after restart.
 - [ ] Add GitHub Actions formatting, vet, build, and unit/integration checks.
 - [ ] Add an isolated acceptance-test CI job and confirm hosted runs pass.
 - [ ] Configure GoReleaser and validate snapshot artifacts.
@@ -350,3 +350,27 @@ Then, updates and deletion:
   connection open; draining responses and closing its clients resolved the test
   cleanup issue, confirmed by 20 repeated race runs and the full suite.
   Docker, hosted CI, and published releases remain unfinished.
+
+- 2026-09-15, step 6b: Added a digest-pinned multi-stage Dockerfile with a static
+  non-root scratch runtime and a build-context allowlist. A synthetic token in a
+  source directory exposed an initial ignore-rule mistake; re-excluding directory
+  contents fixed it, and the exported context now contains only production Go
+  source plus module files. Runtime filesystem inspection found no shell,
+  compiler/source, database, token, or private-key files in the image.
+- 2026-09-15, step 6b: Added Compose with host-loopback HTTPS, read-only credential
+  mounts, an owned private named volume, a read-only root filesystem, dropped
+  capabilities, no-new-privileges, and resource/log limits. A new `flagd healthcheck`
+  command verifies the certificate/public Host against the internal listener,
+  including when the published port differs. It needs no token or private key.
+- 2026-09-15, step 6b verification: Docker Desktop 4.90.0 / Engine 29.7.2 / Compose
+  5.5.1 ran the opt-in integration suite on native Linux arm64 and emulated Linux
+  amd64. Verified TLS health, anonymous 401, CLI toggling, dev/prod isolation,
+  private database ownership/modes, restart and complete-container-replacement
+  persistence, deletion, and clean shutdown. Tests removed only their isolated
+  containers, networks, volumes, and image tags; reusable build caches remain.
+- 2026-09-15, step 6b verification: The documented OpenSSL/Compose quickstart
+  passed with curl and built CLI commands, manual health probing, authenticated
+  operations, and persistence after recreation. Normal CGO-disabled tests, vet,
+  all-package race/shuffle tests, and source/test plus actual container-binary
+  vulnerability scans passed. `cmd/flagd` coverage is now 91.0%; frozen API/client
+  compatibility checks remain green. Hosted CI and GoReleaser releases are next.

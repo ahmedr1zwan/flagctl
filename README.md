@@ -17,10 +17,12 @@ including import and drift reconciliation.
 | Validation, SQLite, REST API, client, and command tests with race checks | Implemented |
 | Provider unit and Terraform acceptance tests with race checks | Implemented |
 | API compatibility policy, frozen fixtures, and historical-client checks | Implemented |
-| Docker, CI, and published binaries | Planned |
+| Docker/Compose with authenticated TLS, health checks, and persistent storage | Implemented |
+| GitHub Actions CI and published binaries | Planned |
 
-The default mode is for local development; authenticated TLS access is also available. Verification results and
-the remaining milestones are recorded in [TODO.md](TODO.md) and [PLAN.md](PLAN.md).
+The default mode is for local development; authenticated TLS access is also
+available, including through Docker. Verification results and the remaining
+milestones are recorded in [TODO.md](TODO.md) and [PLAN.md](PLAN.md).
 
 Architecture:
 
@@ -28,7 +30,7 @@ Architecture:
 flowchart LR
     CLI["Cobra CLI"] --> Client["Shared Go HTTP client"]
     Terraform["Terraform provider"] --> Client
-    Client --> API["Go REST API (/v1)"]
+    Client -->|HTTP or verified HTTPS| API["Go REST API (/v1)"]
     API --> DB[(SQLite)]
 ```
 
@@ -83,6 +85,23 @@ which is printed in the startup log. Listen hostnames are rejected; wildcard and
 non-loopback IPs require explicit secure configuration. See the
 [secure-access guide](docs/security.md) for TLS, token files, and network access.
 `./bin/flagd --help` prints the available options.
+
+## Run with Docker
+
+The [Docker quickstart](docs/docker.md) creates private development credentials,
+configures a non-root container, and starts the service with Compose. After
+exporting the variables in that guide:
+
+```sh
+docker compose up --build --wait --wait-timeout 90
+docker compose ps
+```
+
+The service uses verified HTTPS on host loopback, a read-only root filesystem,
+and a named SQLite volume. The CLI and provider connect from the host using the
+same token/CA file settings as native secure mode. Both container restart and
+replacement preserve flags. `docker compose down` stops the service while keeping
+the database; `down --volumes` deliberately removes it.
 
 ## Use the CLI
 
@@ -432,6 +451,7 @@ constitute a production security audit.
   flag schema, lifecycle, import, and state refresh.
 - [Terraform guide](docs/terraform.md) and [example](examples/terraform/main.tf):
   build and run the local provider.
+- [Docker guide](docs/docker.md), `Dockerfile`, and `compose.yaml`: secure containers and persistence.
 - [Test guide](docs/testing.md): current automated suites and verification scope.
 - `internal/api/`: routing, Host/origin protections, strict request decoding, and JSON errors.
 - `internal/flags/flag.go`: flag model and input validation.

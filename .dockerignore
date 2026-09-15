@@ -1,0 +1,26 @@
+# Only production Go source belongs in the build context. Re-exclude each
+# directory's contents before admitting .go files: allowing a parent directory
+# alone would also admit nested credentials and fixtures.
+**
+!go.mod
+!go.sum
+!cmd/
+cmd/**
+!cmd/flagd/
+cmd/flagd/**
+!cmd/flagd/*.go
+!internal/
+internal/**
+!internal/api/
+internal/api/**
+!internal/api/*.go
+!internal/flags/
+internal/flags/**
+!internal/flags/*.go
+!internal/security/
+internal/security/**
+!internal/security/*.go
+!internal/store/
+internal/store/**
+!internal/store/*.go
+**/*_test.go

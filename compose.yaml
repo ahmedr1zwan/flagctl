@@ -1,0 +1,59 @@
+services:
+  flagd:
+    build:
+      context: .
+      args:
+        RUNTIME_UID: ${FLAGCTL_UID:?Set FLAGCTL_UID to your non-root user ID}
+        RUNTIME_GID: ${FLAGCTL_GID:?Set FLAGCTL_GID to your group ID}
+    command:
+      - --listen=0.0.0.0:8443
+      - --allow-network
+      - --public-origin=https://localhost:${FLAGCTL_PORT:-8443}
+      - --data-dir=/var/lib/flagctl/data
+      - --token-file=/run/secrets/api_token
+      - --tls-cert-file=/run/secrets/tls_cert
+      - --tls-key-file=/run/secrets/tls_key
+    ports:
+      - "127.0.0.1:${FLAGCTL_PORT:-8443}:8443"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 256m
+    cpus: 1.0
+    stop_grace_period: 10s
+    volumes:
+      - flag_data:/var/lib/flagctl
+    secrets: [api_token, tls_cert, tls_key, tls_ca]
+    healthcheck:
+      test:
+        - CMD
+        - /flagd
+        - healthcheck
+        - --server=https://localhost:${FLAGCTL_PORT:-8443}
+        - --connect=127.0.0.1:8443
+        - --ca-file=/run/secrets/tls_ca
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  flag_data:
+
+# Compose file secrets preserve host ownership/modes. Build with the matching
+# non-root UID/GID; do not relax file permissions or put token values in YAML.
+secrets:
+  api_token:
+    file: ${FLAGCTL_TOKEN_FILE:?Set FLAGCTL_TOKEN_FILE to a private token file}
+  tls_cert:
+    file: ${FLAGCTL_TLS_CERT_FILE:?Set FLAGCTL_TLS_CERT_FILE to a PEM server certificate}
+  tls_key:
+    file: ${FLAGCTL_TLS_KEY_FILE:?Set FLAGCTL_TLS_KEY_FILE to a private PEM key}
+  tls_ca:
+    file: ${FLAGCTL_CA_FILE:?Set FLAGCTL_CA_FILE to the certificate issuer CA bundle}

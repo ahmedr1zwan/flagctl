@@ -119,7 +119,7 @@ The race detector requires a supported platform and a C compiler. Regular
 builds and tests also support `CGO_ENABLED=0`. To reproduce a shuffled test
 failure, use the seed printed by Go, for example `-shuffle=12345`.
 
-Verified on macOS arm64 with Go 1.27.1 on September 14, 2026:
+Verified on macOS arm64 with Go 1.27.1 on September 15, 2026:
 
 | Package | Statement coverage | Main checks |
 | --- | --- | --- |
@@ -130,7 +130,7 @@ Verified on macOS arm64 with Go 1.27.1 on September 14, 2026:
 | `internal/client` | 97.2% | Real-service lifecycle, request serialization, invalid input, response validation, safe errors, redirect refusal, timeouts, proxy bypass, TLS trust, response size limits |
 | `internal/cli` | 96.1% | Real-service workflows, JSON/table output, terminal escaping, configuration precedence, invalid commands, output failures, cancellation |
 | `cmd/flagctl` | 100.0% | Actual entry point in child processes: help, success, error exit codes, stdout/stderr separation, SIGINT |
-| `cmd/flagd` | 88.1% | Listen-address restrictions, startup failures, health, graceful shutdown, restart persistence |
+| `cmd/flagd` | 91.0% | Listen-address restrictions, startup failures, TLS health probe, graceful shutdown, restart persistence |
 | `internal/provider` | 87.8% | Protocol schema, configuration precedence, unknown values, timeouts, validators, import identity, safe errors and prior-state preservation |
 
 For provider unit and acceptance coverage together, run:
@@ -214,5 +214,33 @@ OpenSSL 3, curl, and the CLI. Linux and Windows amd64 cross-builds pass; runtime
 checks were performed on macOS arm64. Secret-file loading fails closed on Windows
 until ACL-aware privacy validation is implemented.
 
-Next: Docker packaging. CI will run these commands once the
-planned GitHub Actions workflows are added.
+## Docker integration tests
+
+With a local Docker Engine and Compose available to a non-root macOS/Linux user:
+
+```sh
+FLAGCTL_DOCKER_TEST=1 go test -v -count=1 ./tests/docker -timeout=15m
+```
+
+Normal Go runs skip this test. The opt-in run creates its own ephemeral
+certificates/token, unique Compose project, temporary host CLI, and database
+volume. It clears inherited flagctl/Compose configuration and does not modify
+the developer's running service, state, or Docker context. Cleanup removes its
+own containers, network, volume, and generated image tag; build caches remain.
+The test exports the effective Docker context to verify that a synthetic secret
+nested in a source directory never reaches the builder.
+
+Verified with Docker Desktop 4.90.0, Engine 29.7.2, and Compose 5.5.1: TLS health,
+401 rejection, CLI changes, environment isolation, runtime restrictions, private
+database files, and persistence across restart and complete container replacement.
+The suite passed on native Linux arm64 and Linux amd64 under emulation using
+`DOCKER_DEFAULT_PLATFORM=linux/amd64`. The [Docker quickstart](docker.md) was also
+verified with OpenSSL and curl. The actual runtime binary passed `govulncheck`
+and the exported image contained no source, credentials, or shell.
+
+The ordinary `cmd/flagd` suite tests the health probe's public Host, direct loopback
+connection, trust/hostname failures, redirects/proxy refusal, response limits,
+and cancellation. Container processes themselves are not race-instrumented;
+the normal Go race suite covers the service code.
+
+Next: GitHub Actions CI, followed by release artifacts.

@@ -1,9 +1,9 @@
 # flagctl implementation plan
 
 Status: steps 1–5 (service, Cobra CLI, Terraform provider, automated tests, and
-API compatibility evidence) and step 6a (secure access) are complete and verified
-locally. Next is Docker packaging, followed by CI and releases. Provider Registry
-publication remains separate.
+API compatibility evidence) and steps 6a–6b (secure access and Docker packaging) are complete and verified.
+Next is hosted CI, followed by releases. Provider Registry publication remains
+separate.
 
 ## Goal
 
@@ -279,7 +279,20 @@ and authenticated Terraform acceptance tests pass. Tokens are absent from
 Terraform resource state and captured logs/output. Default local mode, frozen
 v1 fixtures, and the historical client still pass. The
 [secure-access guide](docs/security.md) documents setup, rotation, and limits.
-Docker packaging is next.
+Completed checkpoint 6b: a multi-stage build produces a static, non-root `scratch`
+image from a digest-pinned Go builder. Compose enables authenticated TLS, publishes
+only on host loopback, mounts private credential files read-only, and persists
+SQLite in a named volume. Runtime limits, dropped capabilities, and a read-only
+root filesystem are configured. The service's healthcheck subcommand verifies
+TLS and the public Host while dialing its container-local listener.
+
+An opt-in Docker integration test verifies build-context exclusions with a nested
+credential canary, runtime restrictions, CLI/API operations, environment isolation,
+file ownership/permissions, persistence through restart and replacement, and clean
+shutdown. It passes on Linux arm64 and Linux amd64 under Docker Desktop emulation.
+The OpenSSL quickstart also passed. Normal/race tests and source/runtime-binary
+vulnerability scans pass. The [Docker guide](docs/docker.md) records setup and
+cleanup. Hosted CI is next.
 
 Add GitHub Actions for formatting checks, `go vet`, builds, unit/integration
 tests, and a separate acceptance-test job with isolated service setup. Add a

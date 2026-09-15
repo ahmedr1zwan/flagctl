@@ -88,9 +88,10 @@ port, including a port assigned for `--listen 127.0.0.1:0`.
 The public origin controls the accepted HTTP Host, including its port. Port 443
 may be omitted. It is independent of the bind address so container forwarding
 can use a different external port. It does not configure DNS or issue a
-certificate. Example: a future container may listen on `0.0.0.0:8443` while
-accepting `https://localhost:9443`, with a certificate covering `localhost`.
-Container packaging is the next checkpoint.
+certificate. The [Docker setup](docker.md) listens on `0.0.0.0:8443` and can
+accept `https://localhost:9443` through a different published host port, with a
+certificate covering `localhost`. Its health probe preserves that public origin
+while connecting to the internal listener.
 
 Secure mode serves HTTPS directly. It rejects plaintext HTTP and does not trust
 `X-Forwarded-Proto` as proof of TLS. Any proxy in front must preserve the
