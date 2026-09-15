@@ -89,12 +89,14 @@ Then, updates and deletion:
   protection before enabling any non-loopback/container-interface listener.
 - [x] Add a multi-stage Dockerfile and Compose with persistent storage.
 - [x] Verify the container quickstart and persistence after restart.
-- [ ] Add GitHub Actions formatting, vet, build, and unit/integration checks.
-- [ ] Add an isolated acceptance-test CI job and confirm hosted runs pass.
+- [x] Add GitHub Actions formatting, vet, build, and unit/integration checks.
+- [x] Add an isolated acceptance-test CI job and confirm hosted runs pass.
+- [x] Verify the Docker lifecycle and vulnerability scans in separate CI jobs.
+- [x] Add the README CI badge after a successful hosted run.
 - [ ] Configure GoReleaser and validate snapshot artifacts.
 - [ ] Publish a tagged GitHub release with binaries and checksums.
 - [ ] Verify downloaded release binaries and document installation.
-- [ ] Finish the README architecture, examples, test commands, and CI badge.
+- [ ] Finish release installation and review README architecture, examples, and test commands.
 - [ ] Run the quickstart from a clean checkout.
 - [ ] Audit both resume bullets against the completed evidence in PLAN.md.
 
@@ -374,3 +376,26 @@ Then, updates and deletion:
   all-package race/shuffle tests, and source/test plus actual container-binary
   vulnerability scans passed. `cmd/flagd` coverage is now 91.0%; frozen API/client
   compatibility checks remain green. Hosted CI and GoReleaser releases are next.
+
+- 2026-09-15, step 6c: Added push/PR/manual GitHub Actions CI with four independent
+  Ubuntu 24.04 amd64 jobs for Go quality/tests, real Terraform acceptance,
+  Docker integration, and vulnerability scans. Third-party actions use verified
+  full commit pins; checkout does not persist credentials, the workflow token is
+  read-only, and tests need no personal keys or repository secrets. Timeouts and
+  concurrency cancellation bound stale runs. Coverage is printed in job logs;
+  credentials, Terraform state, and databases are not uploaded as artifacts.
+- 2026-09-15, step 6c local verification: actionlint 1.7.12, tracked Go formatting,
+  Terraform example formatting, module download/verification, vet, CGO-disabled
+  builds/tests, full race/shuffle tests, real Terraform acceptance with race
+  coverage, and the Linux amd64 Compose lifecycle all passed. Application/test
+  and frozen-client govulncheck 1.8.0 scans found no known vulnerabilities.
+  Frozen API/client fixtures and module dependencies are unchanged.
+- 2026-09-15, step 6c hosted verification: Commit bdbc0a1 passed all four jobs in
+  [run 34993245977](https://github.com/ahmedr1zwan/flagctl/actions/runs/34993245977).
+  Logs confirm all eight acceptance cases ran, including authenticated TLS;
+  provider acceptance coverage is 98.5%. Docker verified Linux amd64 runtime
+  restrictions, credential exclusions, authentication, persistence through restart
+  and replacement, private files, and cleanup. Ordinary and race suites passed,
+  including the historical client; both vulnerability scans found no known
+  vulnerabilities. Added the README badge after this success. Next is GoReleaser
+  snapshot validation, followed by a tagged release and downloaded-binary checks.

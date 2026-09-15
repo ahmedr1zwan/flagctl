@@ -283,4 +283,10 @@ CI currently exercises Linux amd64. Local macOS arm64 and Docker arm64 results
 above are separate evidence; Windows runtime support and released binaries are
 not established by a green workflow.
 
-Next: hosted-run verification, followed by release artifacts.
+All four jobs passed in the [first hosted run](https://github.com/ahmedr1zwan/flagctl/actions/runs/34993245977)
+on September 15, 2026, for commit `bdbc0a1`. Acceptance logs include all eight
+cases, with 98.5% provider coverage. The Docker job ran the actual Linux amd64
+image and verified its lifecycle; both vulnerability scans reported no known
+vulnerabilities. The ordinary race coverage matches the table above.
+
+Next: GoReleaser snapshot validation and published release artifacts.

@@ -1,5 +1,7 @@
 # flagctl
 
+[![CI](https://github.com/ahmedr1zwan/flagctl/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ahmedr1zwan/flagctl/actions/workflows/ci.yml)
+
 Manage boolean feature flags independently across environments through a
 versioned REST API. Built in Go with SQLite persistence, flagctl supports the
 complete flag lifecycle: create, list, read, enable/disable, edit, and delete.
@@ -18,7 +20,8 @@ including import and drift reconciliation.
 | Provider unit and Terraform acceptance tests with race checks | Implemented |
 | API compatibility policy, frozen fixtures, and historical-client checks | Implemented |
 | Docker/Compose with authenticated TLS, health checks, and persistent storage | Implemented |
-| GitHub Actions CI and published binaries | Planned |
+| GitHub Actions Go, Terraform, Docker, and vulnerability checks | Passing on Linux amd64 |
+| GoReleaser and published binaries | Planned |
 
 The default mode is for local development; authenticated TLS access is also
 available, including through Docker. Verification results and the remaining
@@ -400,13 +403,21 @@ and destroy against an isolated service. They are skipped in ordinary `go test`
 runs unless `TF_ACC=1`. See the [test guide](docs/testing.md) for requirements,
 coverage, and commands, and [TODO.md](TODO.md#verification-log) for recorded results.
 
+[GitHub Actions CI](.github/workflows/ci.yml) runs on pull requests and pushes to
+`main`. Separate jobs check Go formatting/vet/builds/tests with race detection,
+real Terraform acceptance, the Docker lifecycle, and known vulnerabilities.
+Tests create isolated services, storage, and temporary credentials; no personal
+keys or externally running service are needed. See the
+[CI guide](docs/testing.md#github-actions) to reproduce checks or inspect failures.
+
 To repeat the known-vulnerability check (requires internet access):
 
 ```sh
-go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -test ./...
 ```
 
-The step 4 scan reported `No vulnerabilities found.` The scanner is a development
+The September 15 local and hosted scans reported `No vulnerabilities found.`
+CI also scans the archived client module separately. The scanner is a development
 tool and does not add a dependency to the application module. It checks known
 vulnerabilities, not every possible security defect.
 

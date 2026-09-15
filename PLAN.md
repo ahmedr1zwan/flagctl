@@ -1,9 +1,9 @@
 # flagctl implementation plan
 
 Status: steps 1–5 (service, Cobra CLI, Terraform provider, automated tests, and
-API compatibility evidence) and steps 6a–6b (secure access and Docker packaging) are complete and verified.
-Next is hosted CI, followed by releases. Provider Registry publication remains
-separate.
+API compatibility evidence) and steps 6a–6c (secure access, Docker packaging, and
+hosted CI) are complete and verified. Next is GoReleaser and published releases.
+Provider Registry publication remains separate.
 
 ## Goal
 
@@ -292,11 +292,20 @@ file ownership/permissions, persistence through restart and replacement, and cle
 shutdown. It passes on Linux arm64 and Linux amd64 under Docker Desktop emulation.
 The OpenSSL quickstart also passed. Normal/race tests and source/runtime-binary
 vulnerability scans pass. The [Docker guide](docs/docker.md) records setup and
-cleanup. Hosted CI is next.
+cleanup.
 
-Add GitHub Actions for formatting checks, `go vet`, builds, unit/integration
-tests, and a separate acceptance-test job with isolated service setup. Add a
-README badge once the workflow exists and has run successfully.
+Completed checkpoint 6c: GitHub Actions runs four independent jobs on Ubuntu
+24.04 amd64: Go formatting/workflow lint/module verification/vet/builds/tests
+and race coverage; real Terraform acceptance with race coverage; the isolated
+Docker lifecycle; and application/test plus historical-client vulnerability
+scans. Actions use full commit pins, a read-only token, and no persisted checkout
+credentials. No repository secrets or external service accounts are required.
+
+The [first hosted run](https://github.com/ahmedr1zwan/flagctl/actions/runs/34993245977)
+passed all four jobs on September 15, 2026. Logs confirm actual acceptance/TLS
+and Docker cases ran, provider coverage remains 98.5%, and both vulnerability
+scans found no known vulnerabilities. The README now includes the CI badge and
+the [test guide](docs/testing.md#github-actions) explains reproduction and scope.
 
 Configure GoReleaser to build versioned service, CLI, and provider artifacts with
 checksums. Validate a local snapshot, then publish a real tagged GitHub release
