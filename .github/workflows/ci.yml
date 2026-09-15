@@ -1,0 +1,132 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GOFLAGS: -mod=readonly
+  GOTOOLCHAIN: local
+
+jobs:
+  go:
+    name: Go checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Check Go formatting
+        run: |
+          unformatted=$(git ls-files -z '*.go' | xargs -0 gofmt -l)
+          if [[ -n "$unformatted" ]]; then
+            printf 'Run gofmt on:\n%s\n' "$unformatted"
+            exit 1
+          fi
+      - name: Lint workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+      - name: Download and verify modules
+        run: |
+          go mod download
+          go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Build without CGO
+        env:
+          CGO_ENABLED: '0'
+        run: go build ./cmd/...
+      - name: Unit and integration tests without CGO
+        env:
+          CGO_ENABLED: '0'
+        run: go test -count=1 ./... -timeout=10m
+      - name: Race detection and coverage
+        env:
+          CGO_ENABLED: '1'
+        run: |
+          mkdir -p .cache
+          go test -race -shuffle=on -count=1 -coverprofile=.cache/application-coverage.out ./... -timeout=10m
+          go tool cover -func=.cache/application-coverage.out
+
+  terraform:
+    name: Terraform acceptance
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: '1.16.1'
+          terraform_wrapper: false
+      - name: Check Terraform examples
+        run: terraform fmt -check -recursive examples/terraform
+      - name: Provider unit and acceptance tests
+        env:
+          TF_ACC: '1'
+          CGO_ENABLED: '1'
+        run: |
+          mkdir -p .cache
+          terraform version
+          go test -v -race -shuffle=on -count=1 -coverprofile=.cache/provider-coverage.out ./internal/provider -timeout=10m
+          go tool cover -func=.cache/provider-coverage.out
+
+  docker:
+    name: Docker lifecycle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Check Docker tooling
+        run: |
+          docker version
+          docker compose version
+          docker buildx version
+      - name: Build and exercise Compose
+        env:
+          FLAGCTL_DOCKER_TEST: '1'
+          DOCKER_DEFAULT_PLATFORM: linux/amd64
+          CGO_ENABLED: '0'
+        run: go test -v -count=1 ./tests/docker -timeout=15m
+
+  vulnerabilities:
+    name: Vulnerability scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Scan application and test dependencies
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -test ./...
+      - name: Scan historical client fixture
+        working-directory: internal/api/testdata/v1-client
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...

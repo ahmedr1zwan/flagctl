@@ -243,4 +243,44 @@ connection, trust/hostname failures, redirects/proxy refusal, response limits,
 and cancellation. Container processes themselves are not race-instrumented;
 the normal Go race suite covers the service code.
 
-Next: GitHub Actions CI, followed by release artifacts.
+## GitHub Actions
+
+[CI](../.github/workflows/ci.yml) runs on pushes to `main`, pull requests, and
+manual dispatches. Four independent jobs use GitHub-hosted Ubuntu 24.04 amd64
+runners and the Go version in `go.mod`:
+
+| Job | Checks |
+| --- | --- |
+| Go checks | Tracked Go file formatting, actionlint, module verification, vet, CGO-disabled builds/tests, and the full race/shuffle suite with coverage |
+| Terraform acceptance | Example formatting, real Terraform 1.16.1, provider unit/acceptance tests with race detection and coverage, including authenticated TLS |
+| Docker lifecycle | Builds the shipped image, verifies the build-context allowlist, and runs the isolated Compose lifecycle on Linux amd64 |
+| Vulnerability scan | govulncheck for application/test dependencies and the frozen historical-client module |
+
+The commands above reproduce the test jobs locally. For the workflow linter:
+
+```sh
+go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+```
+
+Terraform's setup wrapper is disabled so acceptance tests invoke the actual CLI.
+The tests start their own services and generate temporary credentials; no GitHub
+repository secrets, Terraform Cloud account, or externally running flagd is
+required. The workflow grants only `contents: read`, disables persisted checkout
+credentials, and pins third-party actions to full commit IDs. Go modules and
+compiled objects use setup-go's cache; state, databases, credential files, and
+test working directories are not uploaded as artifacts. Coverage is printed in
+job logs.
+
+Runs have explicit timeouts, and a newer run on the same branch or pull request
+cancels its predecessor. Failed commands fail their job. Inspect the failing
+step in the [Actions page](https://github.com/ahmedr1zwan/flagctl/actions/workflows/ci.yml);
+race/shuffle failures print a seed that can be reused locally. A vulnerability
+scan can start failing when the advisory database changes without a code change.
+Update affected dependencies or the Go toolchain, rerun the relevant tests, and
+commit the fix before rerunning CI.
+
+CI currently exercises Linux amd64. Local macOS arm64 and Docker arm64 results
+above are separate evidence; Windows runtime support and released binaries are
+not established by a green workflow.
+
+Next: hosted-run verification, followed by release artifacts.
