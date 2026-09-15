@@ -31,7 +31,14 @@ func main() {
 }
 
 func run(ctx context.Context, args []string) error {
+	if len(args) > 0 && args[0] == "healthcheck" {
+		return runHealthcheck(ctx, args[1:])
+	}
 	options := flag.NewFlagSet("flagd", flag.ContinueOnError)
+	options.Usage = func() {
+		fmt.Fprintln(options.Output(), "Usage: flagd [options] | flagd healthcheck [options]")
+		options.PrintDefaults()
+	}
 	listen := options.String("listen", "127.0.0.1:8080", "literal IP:port to listen on (loopback by default)")
 	dataDir := options.String("data-dir", "data", "private directory for flags.db (relative to the working directory)")
 	var access accessOptions
