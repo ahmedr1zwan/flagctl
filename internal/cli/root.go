@@ -14,6 +14,8 @@ import (
 
 type options struct {
 	server      string
+	tokenFile   string
+	caFile      string
 	timeout     time.Duration
 	output      string
 	environment string
@@ -33,6 +35,8 @@ func NewCommand(stdout, stderr io.Writer) *cobra.Command {
 		return errors.New("invalid or unknown option; use --help for available options and types")
 	})
 	root.PersistentFlags().StringVar(&options.server, "server", client.DefaultServer, "service origin (overrides FLAGCTL_SERVER)")
+	root.PersistentFlags().StringVar(&options.tokenFile, "token-file", "", "private bearer token file (overrides FLAGCTL_TOKEN_FILE; HTTPS only)")
+	root.PersistentFlags().StringVar(&options.caFile, "ca-file", "", "PEM CA bundle (overrides FLAGCTL_CA_FILE; defaults to system trust)")
 	root.PersistentFlags().DurationVar(&options.timeout, "timeout", 10*time.Second, "maximum time for the HTTP request")
 	root.PersistentFlags().StringVarP(&options.output, "output", "o", "table", "output format: table or json")
 	// Keep help focused on the implemented commands for this increment.
@@ -67,5 +71,12 @@ func (options *options) client(command *cobra.Command) (*client.Client, error) {
 			server = value
 		}
 	}
-	return client.New(server, options.timeout)
+	tokenFile, caFile := options.tokenFile, options.caFile
+	if !command.Flags().Changed("token-file") {
+		tokenFile = os.Getenv("FLAGCTL_TOKEN_FILE")
+	}
+	if !command.Flags().Changed("ca-file") {
+		caFile = os.Getenv("FLAGCTL_CA_FILE")
+	}
+	return client.NewWithConfig(client.Config{Server: server, Timeout: options.timeout, TokenFile: tokenFile, CAFile: caFile})
 }

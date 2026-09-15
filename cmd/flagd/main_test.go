@@ -18,12 +18,12 @@ import (
 
 func TestListenAddressBoundary(t *testing.T) {
 	for _, address := range []string{"127.0.0.1:0", "127.0.0.2:8080", "[::1]:8080", "[::ffff:127.0.0.1]:8080"} {
-		if _, err := parseListenAddress(address); err != nil {
+		if _, err := parseListenAddress(address, false); err != nil {
 			t.Errorf("loopback address rejected: %s: %v", address, err)
 		}
 	}
 	for _, address := range []string{"", "localhost:8080", ":8080", "0.0.0.0:8080", "[::]:8080", "192.0.2.1:8080", "[2001:db8::1]:8080", "[::1%lo0]:8080", "127.0.0.1:-1", "127.0.0.1:65536"} {
-		if _, err := parseListenAddress(address); err == nil {
+		if _, err := parseListenAddress(address, false); err == nil {
 			t.Errorf("unsafe/invalid address accepted: %s", address)
 		}
 	}
@@ -62,6 +62,7 @@ func TestRunRejectsInvalidOptionsBeforeCreatingData(t *testing.T) {
 type serviceEvent struct {
 	Message string `json:"msg"`
 	Address string `json:"address"`
+	TLS     bool   `json:"tls"`
 }
 type eventWriter struct{ events chan serviceEvent }
 
@@ -77,7 +78,7 @@ func (w eventWriter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func startService(t *testing.T, directory string) (string, func()) {
+func startService(t *testing.T, directory string, arguments ...string) (string, func()) {
 	t.Helper()
 	events := make(chan serviceEvent, 8)
 	previous := slog.Default()
@@ -86,7 +87,10 @@ func startService(t *testing.T, directory string) (string, func()) {
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan struct{})
 	var result error
-	go func() { result = run(ctx, []string{"--listen", "127.0.0.1:0", "--data-dir", directory}); close(done) }()
+	go func() {
+		result = run(ctx, append([]string{"--listen", "127.0.0.1:0", "--data-dir", directory}, arguments...))
+		close(done)
+	}()
 	stop := func() {
 		cancel()
 		select {
@@ -104,7 +108,11 @@ func startService(t *testing.T, directory string) (string, func()) {
 		if event.Message != "flagd listening" || event.Address == "" {
 			t.Fatalf("unexpected startup event: %+v", event)
 		}
-		return "http://" + event.Address, stop
+		scheme := "http://"
+		if event.TLS {
+			scheme = "https://"
+		}
+		return scheme + event.Address, stop
 	case <-done:
 		t.Fatalf("service exited before ready: %v", result)
 	case <-time.After(10 * time.Second):

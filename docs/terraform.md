@@ -152,10 +152,13 @@ provider "flagctl" {
 
 | Attribute | Behavior |
 | --- | --- |
-| `server` | Optional loopback origin. Explicit value overrides nonempty `FLAGCTL_SERVER`, then defaults to `http://127.0.0.1:8080`. |
+| `server` | Optional service origin (HTTP loopback or HTTPS). Explicit value overrides nonempty `FLAGCTL_SERVER`, then defaults to `http://127.0.0.1:8080`. |
+| `token_file` | Optional private token file path; overrides `FLAGCTL_TOKEN_FILE`. Requires HTTPS. |
+| `ca_file` | Optional PEM CA bundle path; overrides `FLAGCTL_CA_FILE`. Defaults to system trust. |
 | `timeout` | Optional positive Go duration per HTTP request; defaults to `10s`. |
 
-Explicit empty values are invalid. Provider configuration must be known before
+Explicit empty `server` and `timeout` values are invalid. Empty `token_file`
+clears authentication; empty `ca_file` restores system trust. Provider configuration must be known before
 planning resources. Keep the service endpoint consistent for a Terraform
 workspace: changing it directs that workspace's operations to a different service.
 
@@ -181,11 +184,12 @@ during delete. Other read/delete errors retain state and report a diagnostic.
 
 ## Security and current limits
 
-No API keys or cloud accounts are needed. The provider uses the shared client's
-loopback-only endpoints, request timeout, response validation/limits, proxy
-bypass, and redirect refusal. It does not read the SQLite database or load
-credentials. Authentication and transport protection are still required before
-any network deployment.
+No cloud accounts or third-party API keys are needed. The provider shares the
+client's timeouts, response limits, proxy bypass, and redirect refusal. It loads
+only explicit credential file paths (or their environment fallbacks), with no
+raw-token attribute. HTTP is restricted to loopback; remote access requires a
+token and verified HTTPS. See [secure access](security.md) for a runnable TLS
+example, file permissions, rotation, and current authorization limits.
 
 Terraform state and saved plans contain flag names, values, and descriptions;
 they are not secret storage. State, plans, variable files, and local CLI

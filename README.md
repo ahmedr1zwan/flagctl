@@ -11,6 +11,7 @@ including import and drift reconciliation.
 | --- | --- |
 | Go REST service and persistent SQLite storage | Implemented |
 | Environment isolation, input validation, and local access protections | Implemented |
+| TLS and file-based bearer authentication across service, CLI, and provider | Implemented |
 | Cobra CLI lifecycle with JSON/table output | Implemented |
 | Terraform Plugin Framework provider lifecycle, import, and drift | Implemented; local build |
 | Validation, SQLite, REST API, client, and command tests with race checks | Implemented |
@@ -18,7 +19,7 @@ including import and drift reconciliation.
 | API compatibility policy, frozen fixtures, and historical-client checks | Implemented |
 | Docker, CI, and published binaries | Planned |
 
-The service is currently for local development. Verification results and
+The default mode is for local development; authenticated TLS access is also available. Verification results and
 the remaining milestones are recorded in [TODO.md](TODO.md) and [PLAN.md](PLAN.md).
 
 Architecture:
@@ -78,8 +79,10 @@ curl --noproxy '*' -i http://127.0.0.1:8081/healthz
 ```
 
 `--listen '[::1]:8080'` supports IPv6 loopback. Port `0` selects an available port,
-which is printed in the startup log. Hostnames, wildcard addresses, and
-non-loopback IPs are rejected. `./bin/flagd --help` prints the available options.
+which is printed in the startup log. Listen hostnames are rejected; wildcard and
+non-loopback IPs require explicit secure configuration. See the
+[secure-access guide](docs/security.md) for TLS, token files, and network access.
+`./bin/flagd --help` prints the available options.
 
 ## Use the CLI
 
@@ -163,13 +166,14 @@ For a server already running on port 8081:
 FLAGCTL_SERVER=http://127.0.0.1:8081 ./bin/flagctl flags list --env dev --timeout 5s
 ```
 
-The client accepts loopback IPs or `localhost` with an optional port and a root
-URL path. Credentials in URLs, other paths, queries, fragments, and remote hosts
-are rejected without echoing their values. Local HTTP requests bypass proxy
-environment variables and redirects are not followed. Responses are limited to
-8 MiB and decoded with validation while tolerating additive response fields.
-Use HTTP with the current `flagd`; if using a local HTTPS endpoint, the client
-uses normal certificate verification and provides no insecure bypass.
+The client accepts HTTP loopback origins and HTTPS origins. Remote HTTPS requires
+`--token-file`; credentials are never sent over HTTP. `--ca-file` selects a PEM
+CA bundle while preserving certificate and hostname checks. Both have environment
+fallbacks described in the [secure-access guide](docs/security.md).
+Credentials in URLs, non-root paths, queries, and fragments are rejected without
+echoing their values. Requests bypass proxy environment variables and redirects
+are not followed. Responses are limited to 8 MiB and decoded with validation
+while tolerating additive response fields.
 
 Stop `flagd` and repeat `flags list` to check connection-error handling. Ctrl+C
 cancels an in-progress request. The CLI does not automatically retry operations:
@@ -389,31 +393,22 @@ vulnerabilities, not every possible security defect.
 
 ## Security and credentials
 
-- This is a local development service. It enforces a loopback-only listener and
-  currently exposes health and the flag lifecycle. Local processes can
-  reach it; loopback binding is not authentication. Do not expose it with a
-  tunnel or reverse proxy. Authentication and transport security must precede
-  any future network deployment.
-- HTTP header/read/write/idle timeouts and a header-size limit are configured.
-  Flag creation/update bodies are limited to 16 KiB, and database operations use a
-  bounded request context.
-  Responses use `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`.
-  There are no file-serving or debug endpoints and no permissive CORS headers.
-- Host must match the bound IP and port, or `localhost` on that port. Host checks
-  defend against DNS rebinding. Go's browser-origin protection rejects unsafe
-  cross-origin requests before they reach mutations; native clients such as
-  curl need no Origin header. These checks do not authenticate local clients.
-- The service does not load credential files, read API-key environment
-  variables, or send outbound requests. Service logs contain lifecycle
-  messages, startup errors, and operation names on storage failures, not request
-  headers, query strings, bodies, or raw database errors.
-- The CLI reads `FLAGCTL_SERVER` for configuration and sends requests only to its
-  configured local service. It neither reads the database nor loads credentials.
-  Help does not print the environment-provided server value, and errors do not
-  echo raw transport errors, response bodies, or remote error messages.
-- The Terraform provider shares those HTTP protections. Terraform state and
-  plans contain flag values and descriptions; keep them private. The provider
-  does not load API credentials. Local provider overrides are development-only.
+- Default HTTP mode binds only to loopback and is unauthenticated. Local
+  processes can reach it. Use [secure mode](docs/security.md) for authentication;
+  network listeners additionally require `--allow-network` and `--public-origin`.
+- Secure mode uses TLS 1.3 and private token/key files. The token grants full flag
+  access across environments. Credentials stay outside the repository and are
+  loaded from paths, never raw-token command-line options or Terraform attributes.
+- Header/read/write/idle timeouts, a 16 KiB request-body limit, and bounded database
+  contexts constrain requests. Responses use `no-store` and `nosniff`. There are
+  no file-serving/debug endpoints or permissive CORS headers.
+- Host must match the bound local address or configured HTTPS public origin.
+  Browser-origin protection rejects unsafe cross-origin mutations. Logs omit
+  headers, query strings, bodies, raw database errors, and TLS handshake contents.
+- The CLI and provider verify certificates and hostnames, reject redirects, and
+  bypass proxy settings. Errors omit sensitive inputs. Terraform state/plan files
+  contain flag values and descriptions; keep them private. Tokens are not stored
+  in resource state. Local provider overrides remain for development.
 - `.gitignore` excludes common `.env`, private-key, credential, database, and
   Terraform state/plan files. Ignore rules are a guardrail: they do not detect
   secrets pasted into source, protect already tracked files, or encrypt data.
@@ -429,8 +424,9 @@ constitute a production security audit.
 
 ## Files to explore
 
-- `cmd/flagd/main.go`: options, loopback enforcement, server limits, and shutdown.
+- `cmd/flagd/main.go`: options, listener access policy, server limits, and shutdown.
 - `cmd/flagctl/main.go` and `internal/cli/`: Cobra commands, output, and cancellation.
+- `internal/security/` and [secure-access guide](docs/security.md): token files, TLS, and origins.
 - `internal/client/`: shared HTTP client, endpoint validation, and typed API errors.
 - `cmd/terraform-provider-flagctl/` and `internal/provider/`: provider configuration,
   flag schema, lifecycle, import, and state refresh.

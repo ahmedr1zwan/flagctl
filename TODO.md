@@ -85,7 +85,7 @@ Then, updates and deletion:
 
 ## 6. Packaging, automation, and release
 
-- [ ] Implement and verify authentication, credential handling, and transport
+- [x] Implement and verify authentication, credential handling, and transport
   protection before enabling any non-loopback/container-interface listener.
 - [ ] Add a multi-stage Dockerfile and Compose with persistent storage.
 - [ ] Verify the container quickstart and persistence after restart.
@@ -322,3 +322,31 @@ Then, updates and deletion:
   a separate scan of the historical-client module both reported no vulnerabilities.
   Module verification, Go formatting, and whitespace checks passed. No application
   dependencies changed and no real credentials were used for verification.
+
+- 2026-09-14, step 6a: Added TLS 1.3, private token/key file loading, sanitized
+  connection errors, and explicit network listener/public-origin configuration.
+  Host/origin checks remain active; flag routes require a bearer token in secure
+  mode, while TLS health GET/HEAD remains anonymous. File loading rejects unsafe
+  permissions, symlinks, non-regular/oversized files, and invalid credentials.
+- 2026-09-14, step 6a: Connected token/CA file paths to the shared client, Cobra
+  options/environment fallbacks, and Terraform configuration. Remote access
+  requires HTTPS and a token; HTTP cannot carry credentials. Verified malformed,
+  missing, duplicate, query/cookie, and incorrect authentication; trust/hostname,
+  expiry, and TLS-version failures; no redirects/proxy credential forwarding;
+  and errors/help without secret contents.
+- 2026-09-14, step 6a verification: Normal CGO-disabled tests, vet, module
+  verification, all-package race/shuffle tests, and real Terraform acceptance
+  tests passed. Provider acceptance coverage is 98.5%; the new security package
+  is 90.3%. The frozen v1 contract and historical client remain unchanged and
+  pass. The dependency/test vulnerability scan reported no known vulnerabilities.
+  All three binaries build on macOS arm64 and cross-compile for Linux/Windows
+  amd64; cross-compiled binaries were not executed. Secret-file loading remains
+  disabled on Windows until ACL-aware validation exists.
+- 2026-09-14, step 6a manual check: Ran the OpenSSL certificate/token setup against
+  built binaries on an assigned loopback port. Verified curl TLS health, CLI
+  create/toggle/list/delete, missing-token 401, rejection without CA trust, and
+  clean shutdown. Captured output/logs contained no token. Ephemeral credentials
+  and database were removed afterward. A TLS test initially left a speculative
+  connection open; draining responses and closing its clients resolved the test
+  cleanup issue, confirmed by 20 repeated race runs and the full suite.
+  Docker, hosted CI, and published releases remain unfinished.

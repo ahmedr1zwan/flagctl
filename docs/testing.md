@@ -119,18 +119,19 @@ The race detector requires a supported platform and a C compiler. Regular
 builds and tests also support `CGO_ENABLED=0`. To reproduce a shuffled test
 failure, use the seed printed by Go, for example `-shuffle=12345`.
 
-Verified on macOS arm64 with Go 1.27.1:
+Verified on macOS arm64 with Go 1.27.1 on September 14, 2026:
 
 | Package | Statement coverage | Main checks |
 | --- | --- | --- |
 | `internal/flags` | 100.0% | Identifier boundaries, UTF-8 byte limits, omitted fields versus explicit false/empty values |
 | `internal/store` | 87.2% | CRUD, ordering, environment isolation, close/reopen persistence, concurrent writes, cancellation, private files, symlink rejection, newer schema rejection |
-| `internal/api` | 98.8% | HTTP lifecycle, HEAD/204 semantics, strict JSON, body/media limits, Host/origin protection, stable errors, safe logs, bounded contexts, v1 fixtures, historical-client compatibility, read-only IDs |
-| `internal/client` | 98.5% | Real-service lifecycle, request serialization, invalid input, response validation, safe errors, redirect refusal, timeouts, proxy bypass, TLS trust, response size limits |
-| `internal/cli` | 95.8% | Real-service workflows, JSON/table output, terminal escaping, configuration precedence, invalid commands, output failures, cancellation |
+| `internal/api` | 98.9% | HTTP lifecycle, HEAD/204 semantics, strict JSON, body/media limits, Host/origin protection, stable errors, safe logs, bounded contexts, v1 fixtures, historical-client compatibility, read-only IDs |
+| `internal/security` | 90.3% | Private token/key files, symlinks/FIFOs, origin validation, token comparison/redaction, certificate validity and trust configuration |
+| `internal/client` | 97.2% | Real-service lifecycle, request serialization, invalid input, response validation, safe errors, redirect refusal, timeouts, proxy bypass, TLS trust, response size limits |
+| `internal/cli` | 96.1% | Real-service workflows, JSON/table output, terminal escaping, configuration precedence, invalid commands, output failures, cancellation |
 | `cmd/flagctl` | 100.0% | Actual entry point in child processes: help, success, error exit codes, stdout/stderr separation, SIGINT |
-| `cmd/flagd` | 82.1% | Listen-address restrictions, startup failures, health, graceful shutdown, restart persistence |
-| `internal/provider` | 85.5% | Protocol schema, configuration precedence, unknown values, timeouts, validators, import identity, safe errors and prior-state preservation |
+| `cmd/flagd` | 88.1% | Listen-address restrictions, startup failures, health, graceful shutdown, restart persistence |
+| `internal/provider` | 87.8% | Protocol schema, configuration precedence, unknown values, timeouts, validators, import identity, safe errors and prior-state preservation |
 
 For provider unit and acceptance coverage together, run:
 
@@ -140,9 +141,10 @@ CGO_ENABLED=1 TF_ACC=1 go test -race -shuffle=on -count=1 \
 go tool cover -func=.cache/provider-coverage.out
 ```
 
-This command verified **98.4%** statement coverage for `internal/provider` with
+This command verified **98.5%** statement coverage for `internal/provider` with
 no races reported. The table above uses the ordinary suite with acceptance
-disabled. The standalone provider entry point still reports 0%. Coverage does
+disabled. The standalone provider entry point and shared test fixtures (`internal/testutil`)
+still report 0%; the fixtures are not imported by application binaries. Coverage does
 not prove API backward compatibility or replace a security review. Unix
 permission/symlink checks and the subprocess interrupt test are skipped on Windows.
 
@@ -192,5 +194,25 @@ harness run under the race detector with the command above.
 - The unchanged historical client still completes its lifecycle after an
   additive API field, while contract checks reject changes to existing behavior.
 
-Next: secure container access and packaging. CI will run these commands once the
+Secure-access tests also verify:
+
+- TLS 1.3, certificate chain/hostname/expiry checks, and refusal of TLS 1.2.
+- Missing, incorrect, duplicate, URL, and cookie credentials cannot read or
+  mutate flags; anonymous health is available only over TLS in secure mode.
+- Partial security configuration fails before storage is created. Network
+  listeners require opt-in and enforce the public origin independently of the
+  bound address. Forwarded headers do not bypass TLS requirements.
+- CLI/provider token and CA path precedence, explicit empty overrides, and
+  sanitized failures. Test processes ignore developer credential environment
+  variables and create private, ephemeral certificates/token files.
+- A real Terraform TLS lifecycle covers creation, no-op planning, update, import,
+  destroy cleanup, and absence of the token from resource state. Normal local
+  acceptance and frozen compatibility tests continue to run separately.
+
+The [secure-access demo](security.md) was also verified with built binaries,
+OpenSSL 3, curl, and the CLI. Linux and Windows amd64 cross-builds pass; runtime
+checks were performed on macOS arm64. Secret-file loading fails closed on Windows
+until ACL-aware privacy validation is implemented.
+
+Next: Docker packaging. CI will run these commands once the
 planned GitHub Actions workflows are added.

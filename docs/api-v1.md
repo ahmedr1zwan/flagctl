@@ -185,17 +185,24 @@ isolation, negative controls, coverage, and the historical-client build.
 
 ## Access boundary
 
-The server accepts only literal loopback listen addresses. Host must match the
-actual bound IP and port, or `localhost` on the same port (port 80 may be omitted).
-This blocks unrelated domain names from reaching the service via DNS rebinding.
-Go's `http.CrossOriginProtection` rejects unsafe cross-origin browser requests
-using Sec-Fetch-Site/Origin. Requests from native clients without those headers
-are allowed. No CORS access is enabled. These protections are not authentication;
-other processes running locally can create and read flags.
+Default local mode accepts only literal loopback listen addresses. Host must
+match the actual bound IP and port, or `localhost` on the same port (port 80 may
+be omitted). Other local processes can use this unauthenticated mode.
 
-The service has no authentication or TLS and needs no credentials. Authentication,
-credential handling, and encrypted transport must precede network access. SQLite
-uses a private data directory and files on the local filesystem; data is not
-encrypted. Request content and raw database errors are not logged. Health remains
-a liveness check; the database is initialized before serving, but health does not
-continuously probe database readiness.
+Secure mode uses TLS 1.3 and one bearer token from a private file. Every flag
+operation requires exactly one valid `Authorization: Bearer <token>` header;
+missing or invalid credentials return `401/unauthorized` with
+`WWW-Authenticate: Bearer realm="flagctl"`. GET/HEAD `/healthz` remains anonymous
+over TLS. Plaintext HTTP is rejected; forwarded headers do not establish TLS.
+Host must match the configured HTTPS public origin (default port 443 may be
+omitted). Non-loopback/wildcard listeners additionally require explicit
+`--allow-network`. See [secure access](security.md) for configuration and limits.
+
+Both modes retain Go's browser-origin protection, request limits, and no CORS
+access. Native clients need no Origin header. Authentication does not change flag
+payloads, statuses for authorized operations, or the v1 compatibility fixtures.
+The frozen historical client continues to run against default local mode.
+
+SQLite uses private directories/files and is not encrypted. Request content and
+raw database errors are not logged. Health is a liveness check; storage initializes
+before serving, but health does not continuously probe database readiness.

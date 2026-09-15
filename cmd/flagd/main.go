@@ -1,4 +1,4 @@
-// Command flagd runs the local feature-flag service.
+// Command flagd runs the feature-flag service.
 package main
 
 import (
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"log/slog"
 	"net"
 	"net/http"
@@ -31,8 +32,14 @@ func main() {
 
 func run(ctx context.Context, args []string) error {
 	options := flag.NewFlagSet("flagd", flag.ContinueOnError)
-	listen := options.String("listen", "127.0.0.1:8080", "loopback IP:port to listen on (IPv6: [::1]:8080)")
+	listen := options.String("listen", "127.0.0.1:8080", "literal IP:port to listen on (loopback by default)")
 	dataDir := options.String("data-dir", "data", "private directory for flags.db (relative to the working directory)")
+	var access accessOptions
+	options.BoolVar(&access.allowNetwork, "allow-network", false, "allow network listeners; requires TLS, a token file, and a public origin")
+	options.StringVar(&access.publicOrigin, "public-origin", "", "HTTPS origin clients use; determines accepted Host")
+	options.StringVar(&access.tokenFile, "token-file", "", "private file containing a 64-character hexadecimal bearer token")
+	options.StringVar(&access.certFile, "tls-cert-file", "", "PEM server certificate chain")
+	options.StringVar(&access.keyFile, "tls-key-file", "", "private PEM server key file")
 	if err := options.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return nil
@@ -42,7 +49,11 @@ func run(ctx context.Context, args []string) error {
 	if options.NArg() != 0 {
 		return errors.New("unexpected positional arguments; use --help for usage")
 	}
-	addr, err := parseListenAddress(*listen)
+	addr, err := parseListenAddress(*listen, access.allowNetwork)
+	if err != nil {
+		return err
+	}
+	secure, err := access.load(addr)
 	if err != nil {
 		return err
 	}
@@ -60,9 +71,21 @@ func run(ctx context.Context, args []string) error {
 		return err
 	}
 	defer flagStore.Close()
+	handler := api.NewHandler(flagStore, listener.Addr().String())
+	if secure.tls != nil {
+		if secure.origin == "" {
+			secure.origin = "https://" + listener.Addr().String()
+		}
+		handler, err = api.NewSecureHandler(flagStore, secure.origin, secure.token)
+		if err != nil {
+			return err
+		}
+	}
 
 	server := &http.Server{
-		Handler:           api.NewHandler(flagStore, listener.Addr().String()),
+		Handler:           handler,
+		TLSConfig:         secure.tls,
+		ErrorLog:          log.New(serverErrorWriter{}, "", 0),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -71,9 +94,13 @@ func run(ctx context.Context, args []string) error {
 	}
 	serveErrors := make(chan error, 1)
 	go func() {
-		serveErrors <- server.Serve(listener)
+		if secure.tls != nil {
+			serveErrors <- server.ServeTLS(listener, "", "")
+		} else {
+			serveErrors <- server.Serve(listener)
+		}
 	}()
-	slog.Info("flagd listening", "address", listener.Addr().String())
+	slog.Info("flagd listening", "address", listener.Addr().String(), "tls", secure.tls != nil)
 
 	select {
 	case err := <-serveErrors:
@@ -93,15 +120,17 @@ func run(ctx context.Context, args []string) error {
 	}
 }
 
-// Only literal loopback addresses are allowed until network authentication and
-// transport security exist. Avoid DNS resolution when enforcing this boundary.
-func parseListenAddress(value string) (netip.AddrPort, error) {
+// Avoid DNS resolution when enforcing the explicit network opt-in boundary.
+func parseListenAddress(value string, allowNetwork bool) (netip.AddrPort, error) {
 	addr, err := netip.ParseAddrPort(value)
 	if err != nil {
-		return netip.AddrPort{}, errors.New("--listen must be a loopback IP:port, such as 127.0.0.1:8080 or [::1]:8080")
+		return netip.AddrPort{}, errors.New("--listen must be a literal IP:port, such as 127.0.0.1:8080 or [::1]:8080")
 	}
-	if addr.Addr().Zone() != "" || !addr.Addr().Unmap().IsLoopback() {
-		return netip.AddrPort{}, errors.New("--listen must use a loopback IP; network access requires authentication and transport security, which are not implemented yet")
+	if addr.Addr().Zone() != "" || addr.Addr().Unmap().IsMulticast() {
+		return netip.AddrPort{}, errors.New("--listen cannot use multicast addresses or IPv6 zones")
+	}
+	if !allowNetwork && !addr.Addr().Unmap().IsLoopback() {
+		return netip.AddrPort{}, errors.New("network listeners require --allow-network with TLS, a token file, and a public origin")
 	}
 	return addr, nil
 }

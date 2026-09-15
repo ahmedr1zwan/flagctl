@@ -15,6 +15,7 @@ import (
 	"github.com/ahmedr1zwan/flagctl/internal/api"
 	"github.com/ahmedr1zwan/flagctl/internal/client"
 	"github.com/ahmedr1zwan/flagctl/internal/store"
+	"github.com/ahmedr1zwan/flagctl/internal/testutil"
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
 	"github.com/hashicorp/terraform-plugin-go/tfprotov6"
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
@@ -23,12 +24,17 @@ import (
 )
 
 type acceptanceFixture struct {
-	client     *client.Client
-	endpoint   string
-	workingDir string
+	client      *client.Client
+	endpoint    string
+	workingDir  string
+	credentials testutil.TLSFiles
 }
 
 func newAcceptanceFixture(t *testing.T) *acceptanceFixture {
+	return newAcceptanceFixtureWithTLS(t, false)
+}
+
+func newAcceptanceFixtureWithTLS(t *testing.T, secure bool) *acceptanceFixture {
 	t.Helper()
 	if os.Getenv("TF_ACC") != "1" {
 		t.Skip("set TF_ACC=1 to run Terraform acceptance tests")
@@ -73,21 +79,29 @@ func newAcceptanceFixture(t *testing.T) *acceptanceFixture {
 	t.Setenv("TF_IN_AUTOMATION", "1")
 	t.Setenv("CHECKPOINT_DISABLE", "1")
 	t.Setenv("FLAGCTL_SERVER", "")
+	t.Setenv("FLAGCTL_TOKEN_FILE", "")
+	t.Setenv("FLAGCTL_CA_FILE", "")
 
-	backend, err := store.Open(t.Context(), filepath.Join(root, "data"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		if err := backend.Close(); err != nil {
-			t.Error(err)
+	var server *httptest.Server
+	var credentials testutil.TLSFiles
+	if secure {
+		server, credentials = testutil.NewSecureAPI(t)
+	} else {
+		backend, err := store.Open(t.Context(), filepath.Join(root, "data"))
+		if err != nil {
+			t.Fatal(err)
 		}
-	})
-	server := httptest.NewUnstartedServer(nil)
-	server.Config.Handler = api.NewHandler(backend, server.Listener.Addr().String())
-	server.Start()
-	t.Cleanup(server.Close)
-	service, err := client.New(server.URL, 5*time.Second)
+		t.Cleanup(func() {
+			if err := backend.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		server = httptest.NewUnstartedServer(nil)
+		server.Config.Handler = api.NewHandler(backend, server.Listener.Addr().String())
+		server.Start()
+		t.Cleanup(server.Close)
+	}
+	service, err := client.NewWithConfig(client.Config{Server: server.URL, Timeout: 5 * time.Second, TokenFile: credentials.TokenFile, CAFile: credentials.CAFile})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +110,7 @@ func newAcceptanceFixture(t *testing.T) *acceptanceFixture {
 	if err := os.Mkdir(workingDir, 0700); err != nil {
 		t.Fatal(err)
 	}
-	return &acceptanceFixture{client: service, endpoint: server.URL, workingDir: workingDir}
+	return &acceptanceFixture{client: service, endpoint: server.URL, workingDir: workingDir, credentials: credentials}
 }
 
 func (f *acceptanceFixture) testCase(t *testing.T, steps ...resource.TestStep) resource.TestCase {
@@ -124,7 +138,11 @@ func (f *acceptanceFixture) testCase(t *testing.T, steps ...resource.TestStep) r
 }
 
 func (f *acceptanceFixture) config(resources string) string {
-	return fmt.Sprintf("provider \"flagctl\" {\n  server = %q\n}\n%s", f.endpoint, resources)
+	security := ""
+	if f.credentials.TokenFile != "" {
+		security = fmt.Sprintf("  token_file = %q\n  ca_file = %q\n", f.credentials.TokenFile, f.credentials.CAFile)
+	}
+	return fmt.Sprintf("provider \"flagctl\" {\n  server = %q\n%s}\n%s", f.endpoint, security, resources)
 }
 
 func requireFlagAbsent(t *testing.T, service *client.Client, environment, key string) {

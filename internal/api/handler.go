@@ -4,12 +4,14 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/ahmedr1zwan/flagctl/internal/flags"
+	"github.com/ahmedr1zwan/flagctl/internal/security"
 )
 
 // FlagStore is the persistence surface needed by the implemented routes.
@@ -24,6 +26,32 @@ type FlagStore interface {
 // NewHandler accepts the actual bound address, including the assigned port when
 // port 0 is used. Only that Host (or localhost on the same port) is accepted.
 func NewHandler(store FlagStore, address string) http.Handler {
+	_, port, _ := net.SplitHostPort(address)
+	hosts := []string{address, net.JoinHostPort("localhost", port)}
+	if port == "80" {
+		hosts = append(hosts, strings.TrimSuffix(address, ":80"), "localhost")
+	}
+	return newHandler(store, hosts, nil)
+}
+
+// NewSecureHandler restricts requests to the configured HTTPS origin. Only
+// GET/HEAD health checks are anonymous; all flag operations require the token.
+func NewSecureHandler(store FlagStore, origin string, token security.Token) (http.Handler, error) {
+	base, err := security.ParseOrigin(origin)
+	if err != nil || base.Scheme != "https" || !token.IsSet() {
+		return nil, errors.New("secure API requires an HTTPS public origin and a valid token")
+	}
+	hosts := []string{base.Host}
+	if base.Port() == "" {
+		hosts = append(hosts, net.JoinHostPort(base.Hostname(), "443"))
+	}
+	if base.Port() == "443" {
+		hosts = append(hosts, strings.TrimSuffix(base.Host, ":443"))
+	}
+	return newHandler(store, hosts, &token), nil
+}
+
+func newHandler(store FlagStore, hosts []string, token *security.Token) http.Handler {
 	handler := &flagHandler{store: store}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", health)
@@ -36,17 +64,31 @@ func NewHandler(store FlagStore, address string) http.Handler {
 	protection.SetDenyHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusForbidden, "forbidden", "Cross-origin mutation requests are not allowed.")
 	}))
-	protected := protection.Handler(mux)
-	_, port, _ := net.SplitHostPort(address)
+	var routes http.Handler = mux
+	if token != nil {
+		routes = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.TLS == nil {
+				writeError(w, http.StatusBadRequest, "invalid_request", "HTTPS is required.")
+				return
+			}
+			healthCheck := r.URL.Path == "/healthz" && (r.Method == http.MethodGet || r.Method == http.MethodHead)
+			if !healthCheck && !token.Matches(r.Header.Values("Authorization")) {
+				w.Header().Set("WWW-Authenticate", `Bearer realm="flagctl"`)
+				writeError(w, http.StatusUnauthorized, "unauthorized", "A valid bearer token is required.")
+				return
+			}
+			mux.ServeHTTP(w, r)
+		})
+	}
+	protected := protection.Handler(routes)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		host := r.Host
-		// HTTP clients omit the port in Host when using the default HTTP port.
-		if port == "80" && (host == "localhost" || !strings.Contains(host, ":") || strings.HasSuffix(host, "]")) {
-			host += ":80"
+		allowed := false
+		for _, host := range hosts {
+			allowed = allowed || strings.EqualFold(r.Host, host)
 		}
-		if !strings.EqualFold(host, address) && !strings.EqualFold(host, net.JoinHostPort("localhost", port)) {
+		if !allowed {
 			writeError(w, http.StatusForbidden, "forbidden", "Host must match the local service address.")
 			return
 		}

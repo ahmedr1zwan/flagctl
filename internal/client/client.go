@@ -1,5 +1,5 @@
 // Package client implements the HTTP API shared by flagctl and the
-// Terraform provider. It does not access database files or load credentials.
+// Terraform provider. It does not access database files.
 package client
 
 import (
@@ -12,35 +12,67 @@ import (
 	"mime"
 	"net"
 	"net/http"
-	"net/netip"
 	"net/url"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/ahmedr1zwan/flagctl/internal/flags"
+	"github.com/ahmedr1zwan/flagctl/internal/security"
 )
 
 const DefaultServer = "http://127.0.0.1:8080"
 const maxResponseBytes = 8 << 20
 
+// Config contains file paths only, never raw credentials. Empty CAFile uses system trust.
+type Config struct {
+	Server    string
+	Timeout   time.Duration
+	TokenFile string
+	CAFile    string
+}
+
 type Client struct {
+	token   security.Token
 	baseURL url.URL
 	http    *http.Client
 }
 
-// New accepts a loopback service origin only. Remote access and authentication
-// will require an explicit design change when the service supports them.
+// New preserves the unauthenticated loopback workflow.
 func New(server string, timeout time.Duration) (*Client, error) {
-	base, err := parseServer(server)
+	return NewWithConfig(Config{Server: server, Timeout: timeout})
+}
+
+// NewWithConfig loads credentials once and never sends them over HTTP. Remote
+// origins require HTTPS and an explicit token file. Redirects and proxies are off.
+func NewWithConfig(config Config) (*Client, error) {
+	base, err := parseServer(config.Server)
 	if err != nil {
 		return nil, err
 	}
-	if timeout <= 0 {
+	if config.Timeout <= 0 {
 		return nil, errors.New("--timeout must be greater than zero")
 	}
+	if base.Scheme != "https" && (config.TokenFile != "" || config.CAFile != "") {
+		return nil, errors.New("token and CA files require an HTTPS server")
+	}
+	if !security.IsLoopback(base) && config.TokenFile == "" {
+		return nil, errors.New("remote HTTPS servers require a token file")
+	}
+	var token security.Token
+	if config.TokenFile != "" {
+		token, err = security.ReadTokenFile(config.TokenFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+	tlsConfig, err := security.ClientTLS(config.CAFile)
+	if err != nil {
+		return nil, err
+	}
+	timeout := config.Timeout
+
 	transport := &http.Transport{
-		// Never route local flag data through environment-configured proxies.
+		// Never route flag data or credentials through environment-configured proxies.
+		TLSClientConfig:        tlsConfig,
 		Proxy:                  nil,
 		DialContext:            (&net.Dialer{Timeout: timeout, KeepAlive: 30 * time.Second}).DialContext,
 		TLSHandshakeTimeout:    timeout,
@@ -49,7 +81,7 @@ func New(server string, timeout time.Duration) (*Client, error) {
 		MaxIdleConns:           4,
 		IdleConnTimeout:        30 * time.Second,
 	}
-	return &Client{baseURL: *base, http: &http.Client{
+	return &Client{baseURL: *base, token: token, http: &http.Client{
 		Transport: transport,
 		Timeout:   timeout,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
@@ -62,30 +94,20 @@ func (c *Client) Close() {
 	c.http.CloseIdleConnections()
 }
 
+// ValidateServer checks an origin without reading credential files or making requests.
+func ValidateServer(server string) error {
+	_, err := parseServer(server)
+	return err
+}
+
 func parseServer(server string) (*url.URL, error) {
-	invalid := errors.New("--server must be an http(s) loopback origin, such as http://127.0.0.1:8080; credentials, paths, queries, and fragments are not allowed")
-	base, err := url.Parse(server)
-	if err != nil || base.Opaque != "" || (base.Scheme != "http" && base.Scheme != "https") ||
-		base.User != nil || (base.Path != "" && base.Path != "/") || base.RawPath != "" ||
-		base.RawQuery != "" || base.ForceQuery || strings.Contains(server, "#") {
-		return nil, invalid
+	base, err := security.ParseOrigin(server)
+	if err != nil {
+		return nil, err
 	}
-	host := strings.ToLower(base.Hostname())
-	if host != "localhost" {
-		ip, err := netip.ParseAddr(host)
-		if err != nil || ip.Zone() != "" || !ip.Unmap().IsLoopback() {
-			return nil, invalid
-		}
+	if base.Scheme == "http" && !security.IsLoopback(base) {
+		return nil, errors.New("HTTP is allowed only for loopback servers; remote access requires HTTPS")
 	}
-	if port := base.Port(); port != "" {
-		number, err := strconv.Atoi(port)
-		if err != nil || number < 1 || number > 65535 {
-			return nil, invalid
-		}
-	} else if strings.HasSuffix(base.Host, ":") {
-		return nil, invalid
-	}
-	base.Path = ""
 	return base, nil
 }
 
@@ -198,6 +220,9 @@ func (c *Client) do(ctx context.Context, method, path string, payload any, expec
 		return errors.New("could not construct flag request")
 	}
 	request.Header.Set("Accept", "application/json")
+	if c.token.IsSet() {
+		request.Header.Set("Authorization", c.token.Authorization())
+	}
 	if payload != nil {
 		request.Header.Set("Content-Type", "application/json")
 	}
@@ -248,6 +273,7 @@ type APIError struct {
 }
 
 var errorMessages = map[string]string{
+	"unauthorized":           "flag service rejected authentication; check the token file",
 	"invalid_request":        "flag service rejected the request",
 	"forbidden":              "flag service refused access; check the service address",
 	"not_found":              "flag or API route was not found",

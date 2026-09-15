@@ -24,8 +24,10 @@ type flagctlProvider struct {
 }
 
 type providerModel struct {
-	Server  types.String `tfsdk:"server"`
-	Timeout types.String `tfsdk:"timeout"`
+	TokenFile types.String `tfsdk:"token_file"`
+	CAFile    types.String `tfsdk:"ca_file"`
+	Server    types.String `tfsdk:"server"`
+	Timeout   types.String `tfsdk:"timeout"`
 }
 
 func New(version string) func() provider.Provider {
@@ -39,22 +41,23 @@ func (p *flagctlProvider) Metadata(_ context.Context, _ provider.MetadataRequest
 
 func (p *flagctlProvider) Schema(_ context.Context, _ provider.SchemaRequest, response *provider.SchemaResponse) {
 	response.Schema = schema.Schema{
-		Description: "Manage environment-scoped feature flags on a local flagd service.",
+		Description: "Manage environment-scoped feature flags through a flagd service.",
 		Attributes: map[string]schema.Attribute{
 			"server": schema.StringAttribute{
 				Optional:    true,
-				Description: "Loopback service origin. Overrides FLAGCTL_SERVER; defaults to http://127.0.0.1:8080. Credentials, non-root paths, queries, and fragments are forbidden.",
+				Description: "Service origin (HTTP for loopback, HTTPS for authenticated remote access). Overrides FLAGCTL_SERVER; defaults to http://127.0.0.1:8080. Credentials, non-root paths, queries, and fragments are forbidden.",
 				Validators: []validator.String{stringCheck{
-					description: "Must be an HTTP(S) loopback origin without credentials, paths, queries, or fragments.",
-					validate: func(value string) error {
-						service, err := client.New(value, 10*time.Second)
-						if err != nil {
-							return errors.New("server must be an HTTP(S) loopback origin without credentials, paths, queries, or fragments")
-						}
-						service.Close()
-						return nil
-					},
+					description: "Must be an HTTP(S) origin; HTTP is restricted to loopback.",
+					validate:    client.ValidateServer,
 				}},
+			},
+			"token_file": schema.StringAttribute{
+				Optional:    true,
+				Description: "Path to a private bearer token file. Overrides FLAGCTL_TOKEN_FILE; requires HTTPS. The token contents are never stored in Terraform state.",
+			},
+			"ca_file": schema.StringAttribute{
+				Optional:    true,
+				Description: "Path to a PEM CA bundle. Overrides FLAGCTL_CA_FILE; empty uses system trust. Certificate and hostname verification cannot be disabled.",
 			},
 			"timeout": schema.StringAttribute{
 				Optional:    true,
@@ -74,6 +77,12 @@ func (p *flagctlProvider) Configure(ctx context.Context, request provider.Config
 	if response.Diagnostics.HasError() {
 		return
 	}
+	if config.TokenFile.IsUnknown() {
+		response.Diagnostics.AddAttributeError(path.Root("token_file"), "Unknown token file", "token_file must be known before planning flag resources.")
+	}
+	if config.CAFile.IsUnknown() {
+		response.Diagnostics.AddAttributeError(path.Root("ca_file"), "Unknown CA file", "ca_file must be known before planning flag resources.")
+	}
 	if config.Server.IsUnknown() {
 		response.Diagnostics.AddAttributeError(path.Root("server"), "Unknown service address", "server must be known before planning flag resources.")
 	}
@@ -90,6 +99,10 @@ func (p *flagctlProvider) Configure(ctx context.Context, request provider.Config
 	if !config.Server.IsNull() {
 		server = config.Server.ValueString()
 	}
+	if err := client.ValidateServer(server); err != nil {
+		response.Diagnostics.AddAttributeError(path.Root("server"), "Invalid service address", err.Error())
+		return
+	}
 	timeout := 10 * time.Second
 	if !config.Timeout.IsNull() {
 		var err error
@@ -99,9 +112,16 @@ func (p *flagctlProvider) Configure(ctx context.Context, request provider.Config
 			return
 		}
 	}
-	service, err := client.New(server, timeout)
+	tokenFile, caFile := os.Getenv("FLAGCTL_TOKEN_FILE"), os.Getenv("FLAGCTL_CA_FILE")
+	if !config.TokenFile.IsNull() {
+		tokenFile = config.TokenFile.ValueString()
+	}
+	if !config.CAFile.IsNull() {
+		caFile = config.CAFile.ValueString()
+	}
+	service, err := client.NewWithConfig(client.Config{Server: server, Timeout: timeout, TokenFile: tokenFile, CAFile: caFile})
 	if err != nil {
-		response.Diagnostics.AddAttributeError(path.Root("server"), "Invalid service address", "Set server or FLAGCTL_SERVER to an HTTP(S) loopback origin without credentials, paths, queries, or fragments.")
+		response.Diagnostics.AddError("Invalid service configuration", err.Error())
 		return
 	}
 	// Terraform owns the plugin process lifetime. Resources share this client;

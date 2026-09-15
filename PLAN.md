@@ -1,8 +1,8 @@
 # flagctl implementation plan
 
 Status: steps 1–5 (service, Cobra CLI, Terraform provider, automated tests, and
-API compatibility evidence) are complete and verified locally. Next is secure
-container access, followed by Docker, CI, and releases. Provider Registry
+API compatibility evidence) and step 6a (secure access) are complete and verified
+locally. Next is Docker packaging, followed by CI and releases. Provider Registry
 publication remains separate.
 
 ## Goal
@@ -37,12 +37,13 @@ system Go 1.25.5 is outside the currently security-supported release lines.
   Terraform provider uses pinned Plugin Framework v1.19.0 and that same client.
 - Start as a local, single-instance service. Step 1 enforces literal loopback
   listen addresses; authentication and encrypted transport are prerequisites
-  for any future network access. No API credentials are needed or loaded now.
+  for network access. Step 6a adds explicit authenticated TLS while preserving
+  the default unauthenticated loopback workflow.
   A web dashboard, targeting rules, percentage rollouts, multi-instance deployment,
   and application SDKs are outside this first release.
 
 ```text
-Cobra CLI ----------> shared Go HTTP client --HTTP /v1--> Go service --> SQLite
+Cobra CLI ----------> shared Go HTTP client --HTTP(S) /v1--> Go service --> SQLite
 Terraform provider -> shared Go HTTP client -----------^
 ```
 
@@ -266,8 +267,19 @@ Add a multi-stage Dockerfile and Compose setup with a persistent database volume
 Before enabling a container-interface listener, implement and verify explicit
 network access configuration, authentication, and transport protection. Keep the
 Compose host port bound to loopback and credentials outside committed files.
-Verify restart persistence. The current server intentionally rejects wildcard
-listeners, so Docker networking needs this deliberate security increment.
+Verify restart persistence.
+
+Completed checkpoint 6a: TLS 1.3 and private bearer-token files protect explicit
+network access. Service startup requires certificate/key/token files together;
+network listeners also require `--allow-network` and a certificate-matching
+HTTPS public origin. The shared client, CLI, and provider support token/CA paths
+with certificate verification, no redirects/proxies, and no credentials over
+HTTP. Private-file and authentication rejection tests, a real TLS CLI workflow,
+and authenticated Terraform acceptance tests pass. Tokens are absent from
+Terraform resource state and captured logs/output. Default local mode, frozen
+v1 fixtures, and the historical client still pass. The
+[secure-access guide](docs/security.md) documents setup, rotation, and limits.
+Docker packaging is next.
 
 Add GitHub Actions for formatting checks, `go vet`, builds, unit/integration
 tests, and a separate acceptance-test job with isolated service setup. Add a
