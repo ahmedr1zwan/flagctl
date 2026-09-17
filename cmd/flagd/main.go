@@ -20,6 +20,9 @@ import (
 	"github.com/ahmedr1zwan/flagctl/internal/store"
 )
 
+// Set by GoReleaser; source builds identify themselves as development builds.
+var version = "dev"
+
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -41,6 +44,7 @@ func run(ctx context.Context, args []string) error {
 	}
 	listen := options.String("listen", "127.0.0.1:8080", "literal IP:port to listen on (loopback by default)")
 	dataDir := options.String("data-dir", "data", "private directory for flags.db (relative to the working directory)")
+	showVersion := options.Bool("version", false, "print version and exit")
 	var access accessOptions
 	options.BoolVar(&access.allowNetwork, "allow-network", false, "allow network listeners; requires TLS, a token file, and a public origin")
 	options.StringVar(&access.publicOrigin, "public-origin", "", "HTTPS origin clients use; determines accepted Host")
@@ -55,6 +59,10 @@ func run(ctx context.Context, args []string) error {
 	}
 	if options.NArg() != 0 {
 		return errors.New("unexpected positional arguments; use --help for usage")
+	}
+	if *showVersion {
+		_, err := fmt.Fprintln(os.Stdout, "flagd version", version)
+		return err
 	}
 	addr, err := parseListenAddress(*listen, access.allowNetwork)
 	if err != nil {

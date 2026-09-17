@@ -3,7 +3,9 @@
 The provider uses the Terraform Plugin Framework and the same HTTP client as
 the CLI. The `flagctl_flag` resource supports create/read/update/delete, import,
 replacement, and reconciliation of changes made through the CLI or REST API.
-It is currently a local development build, not a published Registry provider.
+Use the [release installation guide](releases.md#install-the-bundled-terraform-provider)
+for versioned binaries and a filesystem mirror, or build from source below.
+The provider is not published to the Terraform Registry.
 
 ## Build and connect locally
 

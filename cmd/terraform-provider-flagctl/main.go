@@ -14,6 +14,10 @@ import (
 var version = "dev"
 
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		fmt.Fprintln(os.Stdout, "terraform-provider-flagctl version", version)
+		return
+	}
 	if err := providerserver.Serve(context.Background(), provider.New(version), providerserver.ServeOpts{
 		Address: "registry.terraform.io/ahmedr1zwan/flagctl",
 	}); err != nil {

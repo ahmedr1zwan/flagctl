@@ -289,4 +289,6 @@ cases, with 98.5% provider coverage. The Docker job ran the actual Linux amd64
 image and verified its lifecycle; both vulnerability scans reported no known
 vulnerabilities. The ordinary race coverage matches the table above.
 
-Next: GoReleaser snapshot validation and published release artifacts.
+See the [release guide](releases.md) for GoReleaser snapshot validation and the
+separate four-platform downloaded-artifact checks. The tag workflow reuses all
+four CI jobs before creating its draft release.

@@ -2,7 +2,8 @@
 
 Status: steps 1–5 (service, Cobra CLI, Terraform provider, automated tests, and
 API compatibility evidence) and steps 6a–6c (secure access, Docker packaging, and
-hosted CI) are complete and verified. Next is GoReleaser and published releases.
+hosted CI) are complete and verified. GoReleaser snapshots are validated; next
+is the first tagged release and hosted downloaded-binary verification.
 Provider Registry publication remains separate.
 
 ## Goal

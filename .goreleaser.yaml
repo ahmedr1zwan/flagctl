@@ -1,0 +1,63 @@
+version: 2
+project_name: flagctl
+
+builds:
+  - id: flagd
+    main: ./cmd/flagd
+    binary: flagd
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath, -mod=readonly]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+  - id: flagctl
+    main: ./cmd/flagctl
+    binary: flagctl
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath, -mod=readonly]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+  - id: provider
+    main: ./cmd/terraform-provider-flagctl
+    binary: terraform-provider-flagctl_v{{ .Version }}
+    env: [CGO_ENABLED=0]
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    flags: [-trimpath, -mod=readonly]
+    ldflags: ["-s -w -X main.version={{ .Version }}"]
+
+archives:
+  - id: bundle
+    ids: [flagd, flagctl, provider]
+    formats: [tar.gz]
+    name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - README.md
+      - docs/*.md
+      - examples/terraform/*.tf
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+snapshot:
+  version_template: '0.0.0-dev.{{ .ShortCommit }}'
+
+changelog:
+  disable: true
+
+release:
+  github:
+    owner: ahmedr1zwan
+    name: flagctl
+  draft: true
+  prerelease: auto
+  name_template: 'flagctl {{ .Tag }}'
+  header: |
+    Environment-scoped boolean feature flags with a Go REST service, Cobra CLI,
+    and Terraform provider. Each archive includes all three executables.
+
+    See the [installation guide](https://github.com/ahmedr1zwan/flagctl/blob/{{ .Tag }}/docs/releases.md)
+    for checksum verification, the quickstart, and local Terraform installation.
+    Terraform Registry publication and Windows support are outside this release.

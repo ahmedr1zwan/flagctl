@@ -21,7 +21,7 @@ including import and drift reconciliation.
 | API compatibility policy, frozen fixtures, and historical-client checks | Implemented |
 | Docker/Compose with authenticated TLS, health checks, and persistent storage | Implemented |
 | GitHub Actions Go, Terraform, Docker, and vulnerability checks | Passing on Linux amd64 |
-| GoReleaser and published binaries | Planned |
+| GoReleaser and published binaries | Release workflow implemented; first publication pending |
 
 The default mode is for local development; authenticated TLS access is also
 available, including through Docker. Verification results and the remaining
@@ -37,7 +37,15 @@ flowchart LR
     API --> DB[(SQLite)]
 ```
 
-## Run the current service
+## Install binaries
+
+Download a platform bundle from [GitHub Releases](https://github.com/ahmedr1zwan/flagctl/releases).
+The [release installation guide](docs/releases.md) covers Linux/macOS on Intel/ARM,
+SHA-256 verification, a service/CLI quickstart, and installation of the bundled
+Terraform provider through a local filesystem mirror. No Go compiler is needed.
+Terraform Registry publication remains separate.
+
+## Build and run from source
 
 Use Go 1.27.1 or a newer supported, patched release. The `go.mod` minimum selects
 Go 1.27.1; an older Go installation with automatic toolchain selection enabled
@@ -463,6 +471,7 @@ constitute a production security audit.
 - [Terraform guide](docs/terraform.md) and [example](examples/terraform/main.tf):
   build and run the local provider.
 - [Docker guide](docs/docker.md), `Dockerfile`, and `compose.yaml`: secure containers and persistence.
+- [Release guide](docs/releases.md): binary installation, snapshot checks, and tagged publishing.
 - [Test guide](docs/testing.md): current automated suites and verification scope.
 - `internal/api/`: routing, Host/origin protections, strict request decoding, and JSON errors.
 - `internal/flags/flag.go`: flag model and input validation.

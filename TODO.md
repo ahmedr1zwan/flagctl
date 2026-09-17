@@ -93,7 +93,7 @@ Then, updates and deletion:
 - [x] Add an isolated acceptance-test CI job and confirm hosted runs pass.
 - [x] Verify the Docker lifecycle and vulnerability scans in separate CI jobs.
 - [x] Add the README CI badge after a successful hosted run.
-- [ ] Configure GoReleaser and validate snapshot artifacts.
+- [x] Configure GoReleaser and validate snapshot artifacts.
 - [ ] Publish a tagged GitHub release with binaries and checksums.
 - [ ] Verify downloaded release binaries and document installation.
 - [ ] Finish release installation and review README architecture, examples, and test commands.
@@ -399,3 +399,18 @@ Then, updates and deletion:
   including the historical client; both vulnerability scans found no known
   vulnerabilities. Added the README badge after this success. Next is GoReleaser
   snapshot validation, followed by a tagged release and downloaded-binary checks.
+
+- 2026-09-16, step 6d: Configured pinned GoReleaser 2.18.1 with twelve static
+  service/CLI/provider builds bundled into four Linux/macOS Intel/ARM archives,
+  versioned provider filenames, embedded `--version` output, and SHA-256 checksums.
+  All archive checksums and expected contents passed local inspection. The macOS
+  ARM snapshot passed CLI lifecycle, environment isolation, restart persistence,
+  and deletion, plus Terraform mirror init, apply, no-op plan, update, CLI drift,
+  reconciliation, import, and destroy using the actual packaged provider.
+- 2026-09-16, step 6d: Added a tag workflow that reuses all CI checks, uploads a
+  draft, verifies downloaded assets on four native runners, and publishes only
+  after every target passes. Only upload/publish receive write permissions.
+  Workflow lint, release config validation, Terraform formatting, Go vet,
+  CGO-disabled tests, and shuffled race tests passed locally. Added release
+  installation and mirror setup documentation. Tagged publication and hosted
+  downloaded-artifact verification remain pending.
