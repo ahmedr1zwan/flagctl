@@ -15,17 +15,18 @@ including import and drift reconciliation.
 | Environment isolation, input validation, and local access protections | Implemented |
 | TLS and file-based bearer authentication across service, CLI, and provider | Implemented |
 | Cobra CLI lifecycle with JSON/table output | Implemented |
-| Terraform Plugin Framework provider lifecycle, import, and drift | Implemented; local build |
+| Terraform Plugin Framework provider lifecycle, import, and drift | Implemented; versioned binary available |
 | Validation, SQLite, REST API, client, and command tests with race checks | Implemented |
 | Provider unit and Terraform acceptance tests with race checks | Implemented |
 | API compatibility policy, frozen fixtures, and historical-client checks | Implemented |
 | Docker/Compose with authenticated TLS, health checks, and persistent storage | Implemented |
 | GitHub Actions Go, Terraform, Docker, and vulnerability checks | Passing on Linux amd64 |
-| GoReleaser and published binaries | Release workflow implemented; first publication pending |
+| GoReleaser and published binaries | [v0.1.1](https://github.com/ahmedr1zwan/flagctl/releases/tag/v0.1.1); Linux/macOS Intel/ARM verified |
 
 The default mode is for local development; authenticated TLS access is also
-available, including through Docker. Verification results and the remaining
-milestones are recorded in [TODO.md](TODO.md) and [PLAN.md](PLAN.md).
+available, including through Docker. The original implementation plan is complete.
+Verification results are recorded in [TODO.md](TODO.md) and [PLAN.md](PLAN.md);
+[resume evidence](docs/resume-evidence.md) maps each original claim to the code and checks.
 
 Architecture:
 
@@ -39,7 +40,8 @@ flowchart LR
 
 ## Install binaries
 
-Download a platform bundle from [GitHub Releases](https://github.com/ahmedr1zwan/flagctl/releases).
+Download [v0.1.1](https://github.com/ahmedr1zwan/flagctl/releases/tag/v0.1.1). Each
+platform bundle contains the service, CLI, and Terraform provider.
 The [release installation guide](docs/releases.md) covers Linux/macOS on Intel/ARM,
 SHA-256 verification, a service/CLI quickstart, and installation of the bundled
 Terraform provider through a local filesystem mirror. No Go compiler is needed.
@@ -424,7 +426,8 @@ To repeat the known-vulnerability check (requires internet access):
 go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 -test ./...
 ```
 
-The September 15 local and hosted scans reported `No vulnerabilities found.`
+The September 16 release scans reported `No vulnerabilities found.` after
+updating gRPC to v1.83.2 for newly reported advisories.
 CI also scans the archived client module separately. The scanner is a development
 tool and does not add a dependency to the application module. It checks known
 vulnerabilities, not every possible security defect.

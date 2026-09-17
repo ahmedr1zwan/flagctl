@@ -1,6 +1,7 @@
 # Install a release
 
-GitHub releases bundle `flagd`, `flagctl`, and a versioned Terraform provider.
+[v0.1.1](https://github.com/ahmedr1zwan/flagctl/releases/tag/v0.1.1) is the first
+published release. It bundles `flagd`, `flagctl`, and a versioned Terraform provider.
 Choose the archive matching your operating system and CPU:
 
 | Platform | Archive suffix |
@@ -199,3 +200,10 @@ without published assets.
 
 Release configuration follows GoReleaser's [archive](https://goreleaser.com/customization/package/archives/)
 and [draft release](https://goreleaser.com/customization/publish/scm/) documentation.
+
+The [successful v0.1.1 verification/publication run](https://github.com/ahmedr1zwan/flagctl/actions/runs/35178030769)
+used the recovery path after correcting draft-download permissions. All four
+native targets passed the full artifact verifier before publication. The public
+macOS ARM download and installation commands above passed afterward. The tag's
+bundled documentation predates the workflow-permission correction; use this
+current guide for release-maintainer recovery instructions.

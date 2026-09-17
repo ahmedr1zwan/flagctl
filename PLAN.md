@@ -1,10 +1,9 @@
 # flagctl implementation plan
 
-Status: steps 1–5 (service, Cobra CLI, Terraform provider, automated tests, and
-API compatibility evidence) and steps 6a–6c (secure access, Docker packaging, and
-hosted CI) are complete and verified. GoReleaser snapshots are validated; next
-is the first tagged release and hosted downloaded-binary verification.
-Provider Registry publication remains separate.
+Status: steps 1–6 are complete and verified, including the published v0.1.1
+release, native downloaded-binary checks on all four Linux/macOS Intel/ARM
+targets, a clean-checkout quickstart, and the original resume-claim audit.
+Terraform Registry publication remains a separate optional follow-up.
 
 ## Goal
 
@@ -315,6 +314,24 @@ installation, verified CLI and Terraform examples, and the test/release commands
 
 Checkpoint: a clean checkout follows the quickstart, Docker retains flags across
 restarts, hosted CI is green, and an actual GitHub release contains usable binaries.
+
+Completed checkpoint 6d: GoReleaser 2.18.1 produces versioned service, CLI, and
+provider bundles for Linux/macOS Intel/ARM, with SHA-256 checksums. Snapshot and
+fresh-checkout verification passed. The first tag, v0.1.0, was blocked by newly
+reported gRPC advisories; v0.1.1 incorporates the fixed gRPC v1.83.2 dependency.
+
+The [published v0.1.1 release](https://github.com/ahmedr1zwan/flagctl/releases/tag/v0.1.1)
+contains all four bundles. The [successful release workflow](https://github.com/ahmedr1zwan/flagctl/actions/runs/35178030769)
+records passing Go/race, Terraform acceptance, Docker, vulnerability, and native
+four-platform artifact checks. Each platform ran the actual downloaded CLI and
+provider through lifecycle, persistence, mirror installation, no-op plans, drift,
+import, and cleanup checks before publication. Public curl downloads, checksum
+verification, and the documented installation quickstart also passed locally.
+
+The [release guide](docs/releases.md) documents installation and publishing,
+including resuming draft verification after a workflow correction without
+rebuilding assets or moving tags. The [resume evidence](docs/resume-evidence.md)
+audit confirms that both original bullets now match the verified scope.
 
 ## Working approach
 

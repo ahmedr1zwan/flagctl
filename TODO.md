@@ -94,11 +94,11 @@ Then, updates and deletion:
 - [x] Verify the Docker lifecycle and vulnerability scans in separate CI jobs.
 - [x] Add the README CI badge after a successful hosted run.
 - [x] Configure GoReleaser and validate snapshot artifacts.
-- [ ] Publish a tagged GitHub release with binaries and checksums.
-- [ ] Verify downloaded release binaries and document installation.
-- [ ] Finish release installation and review README architecture, examples, and test commands.
+- [x] Publish a tagged GitHub release with binaries and checksums.
+- [x] Verify downloaded release binaries and document installation.
+- [x] Finish release installation and review README architecture, examples, and test commands.
 - [x] Run the quickstart from a clean checkout.
-- [ ] Audit both resume bullets against the completed evidence in PLAN.md.
+- [x] Audit both resume bullets against the completed evidence in PLAN.md.
 
 ## Verification log
 
@@ -438,3 +438,22 @@ Then, updates and deletion:
   without push access. Corrected their scoped permissions and added manual
   recovery of an existing draft: rerun CI on its original tag, skip rebuilding,
   then download/verify/publish. The application tag and uploaded bytes are unchanged.
+
+- 2026-09-16, step 6d published verification: [Release run 35178030769](https://github.com/ahmedr1zwan/flagctl/actions/runs/35178030769)
+  passed the complete CI suite and all four native downloaded-artifact jobs,
+  then published [v0.1.1](https://github.com/ahmedr1zwan/flagctl/releases/tag/v0.1.1).
+  Linux/macOS Intel/ARM each verified checksums and all three versions, CLI CRUD
+  and environment isolation, restart persistence, Terraform mirror init, apply,
+  no-op plans, update, drift reconciliation, import, and destroy. Both source/test
+  and archived-client vulnerability scans reported no vulnerabilities.
+- 2026-09-16, step 6d public-download verification: The exact documented curl,
+  checksum, extraction, version, and filesystem-mirror setup commands passed
+  in a fresh temporary directory. The public macOS ARM bundle passed service/CLI
+  operations, Terraform init/apply/no-op/destroy, and the complete release smoke
+  script. Provider build metadata confirms gRPC v1.83.2 and unmodified release
+  commit 3831501. Original tags and uploaded artifact bytes were preserved.
+- 2026-09-16, final documentation: Completed the installation/architecture/example/
+  test-command review and the original two-bullet resume audit in
+  docs/resume-evidence.md. All original plan checkpoints are complete. Registry
+  publication, Windows support, and macOS signing/notarization remain optional
+  follow-ups and are not claimed by the resume evidence.

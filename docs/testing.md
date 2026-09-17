@@ -279,9 +279,9 @@ scan can start failing when the advisory database changes without a code change.
 Update affected dependencies or the Go toolchain, rerun the relevant tests, and
 commit the fix before rerunning CI.
 
-CI currently exercises Linux amd64. Local macOS arm64 and Docker arm64 results
-above are separate evidence; Windows runtime support and released binaries are
-not established by a green workflow.
+The ordinary CI suite exercises Linux amd64. Release artifact checks separately
+run native Linux/macOS Intel/ARM binaries. Windows runtime support remains outside
+the verified scope.
 
 All four jobs passed in the [first hosted run](https://github.com/ahmedr1zwan/flagctl/actions/runs/34993245977)
 on September 15, 2026, for commit `bdbc0a1`. Acceptance logs include all eight
@@ -292,3 +292,11 @@ vulnerabilities. The ordinary race coverage matches the table above.
 See the [release guide](releases.md) for GoReleaser snapshot validation and the
 separate four-platform downloaded-artifact checks. The tag workflow reuses all
 four CI jobs before creating its draft release.
+
+The [v0.1.1 publication run](https://github.com/ahmedr1zwan/flagctl/actions/runs/35178030769)
+passed the complete CI suite and all four native downloaded-archive checks before
+publishing. Those checks execute service/CLI operations, restart persistence,
+and the actual bundled provider through Terraform mirror init, apply, no-op plan,
+update, drift, import, and destroy. The public download and documented installation
+instructions also passed on macOS ARM. See [resume evidence](resume-evidence.md)
+for the completed claim audit.
