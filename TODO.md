@@ -431,3 +431,10 @@ Then, updates and deletion:
   snapshot checks pass. The fixed macOS ARM package passes the full CLI/provider
   lifecycle verifier. The original release run passed Go, Terraform, and Docker
   but correctly skipped publication after the vulnerability failure.
+
+- 2026-09-16, step 6d hosted artifact check: All CI jobs passed for v0.1.1 and
+  GoReleaser uploaded four archives plus checksums to a draft. The four download
+  jobs failed before executing binaries because GitHub hides drafts from tokens
+  without push access. Corrected their scoped permissions and added manual
+  recovery of an existing draft: rerun CI on its original tag, skip rebuilding,
+  then download/verify/publish. The application tag and uploaded bytes are unchanged.

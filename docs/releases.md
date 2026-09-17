@@ -173,14 +173,25 @@ version tags (`vMAJOR.MINOR.PATCH`) whose commits belong to `main`:
    the same verifier. Only after all four pass does the workflow publish the draft.
 5. Download the public release and rerun the verifier to check the published path.
 
-The default workflow token is read-only. Only the draft upload and final publish
-jobs receive `contents: write`. No personal token, signing key, external storage,
+CI uses read-only tokens. Draft upload, draft download, and final publish
+jobs receive `contents: write`: GitHub exposes draft releases only to callers
+with push access. Checkout never persists these credentials. No personal token, signing key, external storage,
 or Terraform Registry credentials are required. Actions are pinned to commits.
 
 A failed artifact check leaves the release as a draft. Inspect its logs, fix the
 problem, and validate again before publishing. Rerun only failed verification
 jobs for transient failures; the workflow does not overwrite existing assets or
-move tags. Changes to source require a new commit and version.
+move tags. If the workflow itself needs correction, push the fix to `main` and
+resume an existing draft with:
+
+```sh
+gh workflow run release.yml --ref main -f release_tag=v0.1.1
+```
+
+This reruns all CI checks against the original tag, skips rebuilding/uploading,
+then verifies all four existing draft archives and publishes only after success.
+It rejects published releases and tags outside `main`. Changes to application
+source require a new commit and version.
 
 The `v0.1.0` tag did not produce a release: its vulnerability gate detected
 new gRPC advisories. The fixed build uses `v0.1.1`; the earlier tag is retained
