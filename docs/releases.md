@@ -21,9 +21,9 @@ From a new working directory, select your platform below. These commands use
 curl, tar, and `shasum` (available on macOS and Ubuntu):
 
 ```sh
-mkdir flagctl-0.1.0
-cd flagctl-0.1.0
-version=0.1.0
+mkdir flagctl-0.1.1
+cd flagctl-0.1.1
+version=0.1.1
 target=darwin_arm64 # change using the platform table above
 archive="flagctl_${version}_${target}.tar.gz"
 base="https://github.com/ahmedr1zwan/flagctl/releases/download/v${version}"
@@ -40,10 +40,10 @@ signed. Extract and inspect the embedded versions:
 tar -xzf "$archive"
 ./flagd --version
 ./flagctl --version
-./terraform-provider-flagctl_v0.1.0 --version
+./terraform-provider-flagctl_v0.1.1 --version
 ```
 
-All three should report `0.1.0`. Keep the executables together in this directory,
+All three should report `0.1.1`. Keep the executables together in this directory,
 or copy `flagd` and `flagctl` to a directory already on your `PATH`.
 
 ## Run the service and CLI
@@ -93,7 +93,7 @@ import shutil
 
 os.umask(0o077)
 root = Path.cwd()
-version = "0.1.0"
+version = "0.1.1"
 arch = {"x86_64": "amd64", "arm64": "arm64", "aarch64": "arm64"}[platform.machine()]
 target = platform.system().lower() + "_" + arch
 mirror = root / "provider-mirror"
@@ -125,7 +125,7 @@ is scoped to the current shell and only installs this provider from the mirror;
 it does not modify your global Terraform settings or contact the Registry.
 Terraform may warn that the mirror provides checksums for only your current
 platform. Teams using multiple platforms should populate their mirrors and lock
-files for each target. Pin `version = "0.1.0"` in `required_providers.flagctl` when
+files for each target. Pin `version = "0.1.1"` in `required_providers.flagctl` when
 adding other versions to the mirror.
 
 See the [Terraform guide](terraform.md) for updates, import, and CLI drift.
@@ -164,7 +164,7 @@ version tags (`vMAJOR.MINOR.PATCH`) whose commits belong to `main`:
 1. Update the installation version and release documentation, run the snapshot
    verifier, and commit/push the changes to `main`.
 2. Create an annotated tag at the intended commit and push that tag, for example
-   `git tag -a v0.1.0 -m 'Release v0.1.0'` then `git push origin v0.1.0` for the first
+   `git tag -a v0.1.1 -m 'Release v0.1.1'` then `git push origin v0.1.1` for this
    release. Use a new unused version for later releases; never move a published tag.
 3. The workflow runs all four CI jobs against the tag, including Terraform, Docker,
    and vulnerability checks. GoReleaser 2.18.1 then uploads a **draft** with four
@@ -181,6 +181,10 @@ A failed artifact check leaves the release as a draft. Inspect its logs, fix the
 problem, and validate again before publishing. Rerun only failed verification
 jobs for transient failures; the workflow does not overwrite existing assets or
 move tags. Changes to source require a new commit and version.
+
+The `v0.1.0` tag did not produce a release: its vulnerability gate detected
+new gRPC advisories. The fixed build uses `v0.1.1`; the earlier tag is retained
+without published assets.
 
 Release configuration follows GoReleaser's [archive](https://goreleaser.com/customization/package/archives/)
 and [draft release](https://goreleaser.com/customization/publish/scm/) documentation.

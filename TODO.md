@@ -97,7 +97,7 @@ Then, updates and deletion:
 - [ ] Publish a tagged GitHub release with binaries and checksums.
 - [ ] Verify downloaded release binaries and document installation.
 - [ ] Finish release installation and review README architecture, examples, and test commands.
-- [ ] Run the quickstart from a clean checkout.
+- [x] Run the quickstart from a clean checkout.
 - [ ] Audit both resume bullets against the completed evidence in PLAN.md.
 
 ## Verification log
@@ -414,3 +414,20 @@ Then, updates and deletion:
   CGO-disabled tests, and shuffled race tests passed locally. Added release
   installation and mirror setup documentation. Tagged publication and hosted
   downloaded-artifact verification remain pending.
+
+- 2026-09-16, step 6d: A fresh clone passed the README source builds, health,
+  CLI create/toggle/list/get/delete, and the exact documented Terraform override
+  setup, apply, no-op plan, and destroy. A corrupted archive was rejected by the
+  release verifier before execution.
+- 2026-09-16, step 6d release gate: The `v0.1.0` tag's hosted scan detected
+  [GO-2026-6443](https://pkg.go.dev/vuln/GO-2026-6443) and
+  [GO-2026-6348](https://pkg.go.dev/vuln/GO-2026-6348) in gRPC v1.82.1. The pipeline
+  blocked draft creation and publication. Updated to gRPC v1.83.2, which fixes
+  both advisories, with its required transitive dependency updates. Installation
+  instructions now target v0.1.1; the existing v0.1.0 tag will not be moved.
+- 2026-09-16, step 6d dependency-fix verification: The updated source/test scan
+  reports no vulnerabilities. Module verification, vet, all-package shuffled
+  race tests with real Terraform acceptance enabled, and rebuilt GoReleaser
+  snapshot checks pass. The fixed macOS ARM package passes the full CLI/provider
+  lifecycle verifier. The original release run passed Go, Terraform, and Docker
+  but correctly skipped publication after the vulnerability failure.
